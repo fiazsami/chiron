@@ -38,6 +38,9 @@ CODE_FILES = {
         "    # every handler is registered against the shared route table\n"
         '    app.add("/health", health)\n'
     ),
+    "server/handlers/util.py": (
+        "def trim(value):\n    return value.strip()\n"
+    ),
     "server/store/db.py": (
         "class Store:\n"
         '    """A tiny in-memory store keyed by collection name."""\n'

@@ -447,6 +447,59 @@ def collect(bundle: RegisterBundle, wait: bool) -> int:
 
 # --- apply -------------------------------------------------------------------
 
+def normalize_anchors(payload: dict, chapter: Chapter, corpus) -> dict:
+    """Mechanical anchor normalization, content untouched. Models sometimes
+    label anchors with the chapter's slug or full id instead of the
+    register-local id — but the anchor's chapter IS the target by contract,
+    so it is rewritten unconditionally (a quote genuinely from another
+    chapter still fails the grounding check). Quotes are whitespace-collapsed
+    — the exact equivalence the grounding check applies. On a code chapter,
+    a `path` that is missing, unknown, or names a unit file that does NOT
+    contain the quote is re-anchored to the first unit file that does
+    (primary file first, then adapter order) — models often anchor to the
+    file where walkthrough code ends up rather than the file quoting it."""
+    from .dimensions import base as dimbase
+
+    unit_rels = {
+        p.relative_to(corpus.root).as_posix(): p for p in chapter.unit_paths
+    }
+    # Deterministic search order: primary first, then the adapter's order.
+    ordered = list(chapter.unit_paths)
+    if chapter.primary_path in ordered:
+        ordered.remove(chapter.primary_path)
+        ordered.insert(0, chapter.primary_path)
+    texts: dict[Path, str] = {}
+
+    def contains(p: Path, needle: str) -> bool:
+        if p not in texts:
+            texts[p] = dimbase.normalize(p.read_text(errors="replace"))
+        return needle in texts[p]
+
+    def fix(anchor: dict) -> dict:
+        anchor = dict(anchor)
+        anchor["chapter"] = chapter.local_id
+        if isinstance(anchor.get("quote"), str):
+            anchor["quote"] = dimbase.normalize(anchor["quote"])
+        if chapter.kind == "code" and isinstance(anchor.get("quote"), str):
+            needle = anchor["quote"]
+            declared = unit_rels.get(anchor.get("path"))
+            if needle and (declared is None or not contains(declared, needle)):
+                for p in ordered:
+                    if contains(p, needle):
+                        anchor["path"] = p.relative_to(corpus.root).as_posix()
+                        break
+        return anchor
+
+    fixed = json.loads(json.dumps(payload))  # deep copy, JSON-shaped anyway
+    for entry in fixed.get("terms", []) or []:
+        entry["anchors"] = [fix(a) for a in entry.get("anchors", [])]
+    for entry in fixed.get("phrases", []) or []:
+        entry["anchors"] = [fix(a) for a in entry.get("anchors", [])]
+    for entry in fixed.get("edges", []) or []:
+        entry["anchors"] = [fix(a) for a in entry.get("anchors", [])]
+    return fixed
+
+
 def demote_conflicts(payload: dict, chapter: Chapter, lexicon_data: dict,
                      declared: set[str]) -> tuple[dict, list[str]]:
     """Deterministic resolution of parallel-author collisions: an undeclared
@@ -501,6 +554,13 @@ def apply_results(bundle: RegisterBundle, check: bool) -> int:
             payload = result.get(dim)
             if not payload:
                 continue
+            # The API schema can't express minItems: an author with nothing
+            # to contribute returns an empty collection — a skip, not an error.
+            collection = {"lexicon": "terms", "phrasebook": "phrases",
+                          "concept-relations": "edges"}[dim]
+            if not payload.get(collection):
+                continue
+            payload = normalize_anchors(payload, chapter, bundle.corpus)
             if dim == "lexicon":
                 payload, demoted = demote_conflicts(
                     payload, chapter, bundle.data["lexicon"], set())
@@ -532,9 +592,12 @@ def apply_results(bundle: RegisterBundle, check: bool) -> int:
             print(f"REJECTED {local} {dim}:")
             for problem in problems:
                 print(f"  - {problem}")
-    if failures and not check:
-        (wd / "failures.json").write_text(json.dumps(failures, indent=2))
-        print("rejected payloads recorded — fix via: author --retry <id>")
+    if not check:
+        if failures:
+            (wd / "failures.json").write_text(json.dumps(failures, indent=2))
+            print("rejected payloads recorded — fix via: author --retry <id>")
+        else:
+            (wd / "failures.json").unlink(missing_ok=True)
 
     if gated:
         gate_dir = wd / "gated"

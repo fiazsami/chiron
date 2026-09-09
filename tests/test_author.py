@@ -200,3 +200,35 @@ def test_schema_strips_unsupported_constraint_keywords():
                 walk(value)
 
     walk(authormod.result_schema(["lexicon", "phrasebook", "concept-relations"]))
+
+
+def test_normalize_relocates_wrong_path(code_corpus, capsys):
+    """An anchor whose declared path is a real unit file that lacks the
+    quote is re-anchored to the unit file containing it."""
+    corpora_dir, _ = code_corpus
+    bundle = bundle_for(corpora_dir)
+    write_run(bundle, {
+        "server/01": {
+            "redefinitions": [],
+            "lexicon": {"terms": [{
+                "slug": "route-table", "define": True, "term": "route table",
+                "kind": "concept",
+                "definition": "The shared registry handlers register against.",
+                "anchors": [{
+                    "chapter": "server/01",
+                    "path": "server/handlers/util.py",  # real file, wrong one
+                    "quote": "every   handler is registered\nagainst the shared route table",
+                }],
+            }]},
+        },
+    })
+    code = authormod.apply_results(bundle, check=False)
+    capsys.readouterr()
+    assert code == 0
+    data = yaml.safe_load(
+        (corpora_dir / "demo-code/v1/data/lexicon.yaml").read_text())
+    anchor = data["route-table"]["anchors"][0]
+    assert anchor["path"] == "server/handlers/routes.py"
+    # Quote stored whitespace-normalized — the grounding equivalence.
+    assert anchor["quote"] == (
+        "every handler is registered against the shared route table")
