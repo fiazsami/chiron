@@ -1,0 +1,154 @@
+/* chiron notes viewer: pine #1f5d4c, warm stone #f6f4ef, amber #c17c3a,
+   serif headings. Ported from the retired tools/templates/notes.css. */
+
+:root {
+  --pine: #1f5d4c;
+  --pine-dark: #174538;
+  --pine-tint: #d9e5df;
+  --stone: #f6f4ef;
+  --node: #eae6da;
+  --amber: #c17c3a;
+  --amber-dark: #96602c;
+  --amber-tint: #f0dcc3;
+  --ink: #23211c;
+  --muted: #6f6a5e;
+  --paper: #ffffff;
+  --serif: "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--stone);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.page { max-width: 1020px; margin: 0 auto; padding: 28px 20px 40px; }
+
+h1, h2, h3 { font-family: var(--serif); color: var(--pine-dark); font-weight: 600; }
+h1 { font-size: 30px; margin: 6px 0 10px; }
+h2 { font-size: 19px; margin: 0 0 14px; }
+a { color: var(--pine); }
+code {
+  background: var(--node); border-radius: 4px; padding: 1px 5px;
+  font-size: 13px;
+}
+pre {
+  background: var(--node); border-radius: 8px; padding: 12px 14px;
+  overflow-x: auto; font-size: 13px; line-height: 1.5;
+}
+pre code { background: none; padding: 0; }
+.muted { color: var(--muted); }
+
+.card {
+  background: var(--paper); border: 1px solid #e3ded2; border-radius: 12px;
+  padding: 20px 24px; margin-bottom: 16px;
+}
+
+.crumbs { margin-bottom: 12px; font-size: 14px; }
+
+/* Group accents cycle by the group's position within its corpus (see
+   accentClass in lib/content.ts); five colors, then the cycle repeats. */
+.accent-0 { --accent: var(--pine); }
+.accent-1 { --accent: var(--amber); }
+.accent-2 { --accent: var(--pine-dark); }
+.accent-3 { --accent: #6b8f83; }
+.accent-4 { --accent: var(--amber-dark); }
+
+/* Rendered Markdown chapter body. The group accent is the card's top border. */
+.chapter-body { border-top: 4px solid var(--accent, var(--pine)); }
+
+.chapter-body h1 { margin-top: 0; }
+.chapter-body h2 {
+  margin-top: 26px; border-bottom: 1px solid var(--pine-tint); padding-bottom: 6px;
+}
+.chapter-body h3 { font-size: 14.5px; margin: 14px 0 4px; }
+.chapter-body img {
+  display: block; max-width: 100%; height: auto;
+  border: 1px solid #e3ded2; border-radius: 8px;
+}
+.chapter-body ul { padding-left: 20px; }
+.chapter-body li { margin: 4px 0; font-size: 14px; }
+.chapter-body table { border-collapse: collapse; }
+.chapter-body th, .chapter-body td {
+  border: 1px solid #e3ded2; padding: 4px 10px; font-size: 14px;
+}
+
+/* The generated drift callout is the only blockquote in chapter bodies; its
+   first paragraph is the literal GitHub-alert marker "[!WARNING]", hidden here. */
+.chapter-body blockquote {
+  margin: 0 0 16px; background: var(--amber-tint); border-left: 4px solid var(--amber);
+  border-radius: 8px; padding: 12px 18px; font-size: 14px;
+}
+.chapter-body blockquote > p:first-child { display: none; }
+.chapter-body blockquote ul { margin: 0; padding-left: 18px; }
+
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--pine); font-size: 14px; }
+
+/* Index page */
+.index-header { margin-bottom: 20px; }
+.description { margin: 4px 0 6px; font-size: 16px; }
+.group-section { margin-bottom: 22px; }
+.group-section h2 {
+  border-bottom: 3px solid var(--accent, var(--pine)); display: inline-block;
+  padding-bottom: 3px;
+}
+.corpus-heading {
+  font-size: 22px; margin: 26px 0 12px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--pine-tint);
+}
+
+.chapter-list { display: flex; flex-direction: column; gap: 6px; }
+.chapter-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--paper); border: 1px solid #e3ded2; border-radius: 10px;
+  padding: 10px 16px; text-decoration: none; color: var(--ink);
+}
+.chapter-row:hover { border-color: var(--pine); }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.ok { background: var(--pine); }
+.status-dot.stale { background: var(--amber); }
+.status-dot.none { background: #c9c3b4; }
+.status-dot.fallback {
+  background: transparent; border: 2px solid var(--amber);
+  width: 7px; height: 7px;
+}
+.chapter-num {
+  font-family: var(--serif); color: var(--muted); width: 30px; flex-shrink: 0;
+  text-align: right; font-size: 14px;
+}
+.chapter-title { font-weight: 500; flex-shrink: 0; }
+.mini-badges {
+  display: flex; flex-wrap: wrap; gap: 5px; margin-left: auto; justify-content: flex-end;
+}
+.mini-badge {
+  font-size: 11px; color: var(--pine-dark); background: var(--pine-tint);
+  border-radius: 999px; padding: 1px 8px;
+}
+.mini-badge.concept { background: none; border: 1px dashed var(--muted); color: var(--muted); }
+
+/* Component frequency strip */
+.freq { display: flex; flex-direction: column; gap: 5px; }
+.freq-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.freq-label { width: 140px; flex-shrink: 0; text-align: right; color: var(--muted); }
+.freq-bar {
+  flex: 1; height: 12px; background: var(--stone); border-radius: 6px; overflow: hidden;
+}
+.freq-fill { display: block; height: 100%; background: var(--pine); border-radius: 6px; }
+.freq-count { width: 26px; color: var(--muted); }
+
+.site-footer {
+  margin-top: 26px; font-size: 12.5px; color: var(--muted); text-align: center;
+}
+
+@media (max-width: 640px) {
+  .chapter-row { flex-wrap: wrap; }
+  .mini-badges { margin-left: 42px; justify-content: flex-start; }
+  .freq-label { width: 90px; }
+}
