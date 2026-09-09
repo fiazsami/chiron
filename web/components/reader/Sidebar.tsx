@@ -11,20 +11,16 @@ import type { WorkspaceData } from "@/lib/workspace-types";
 
 // Left pane: wordmark, then one section per register — "All Items", the
 // dimension surfaces (Reeder's special items), and group folders with
-// disclosure chevrons and chapter counts. Rows are plain links; the chevron
-// toggles the same collapse state the `i` key does.
+// chapter counts. Rows are plain links; keyboard traversal order must
+// mirror this render order (see sidebarRowsFor in lib/reader.ts).
 export default function Sidebar({
   data,
   pathname,
   scope,
-  collapsed,
-  onToggleGroup,
 }: {
   data: WorkspaceData;
   pathname: string;
   scope: Scope | null;
-  collapsed: ReadonlySet<string>;
-  onToggleGroup: (token: string) => void;
 }) {
   return (
     <nav className="side-nav">
@@ -71,31 +67,23 @@ export default function Sidebar({
               </Link>
             ))}
             {reg.groups.map((group) => {
-              const token = `${reg.key}/${group.id}`;
               const count = chapters.filter(
                 (c) => c.group === group.id,
               ).length;
               if (count === 0) return null;
-              const open = !collapsed.has(token);
               const on =
                 scopeHere &&
                 scope.kind === "group" &&
                 scope.group === group.id;
               return (
-                <div key={group.id} className={`side-row folder${on ? " on" : ""}`}>
-                  <button
-                    className={`side-chevron${open ? " open" : ""}`}
-                    onClick={() => onToggleGroup(token)}
-                    aria-label={`${open ? "Collapse" : "Expand"} ${group.label}`}
-                    aria-expanded={open}
-                  >
-                    ▸
-                  </button>
-                  <Link className="side-row-link" href={`/${reg.key}/${group.id}`}>
-                    {group.label}
-                  </Link>
+                <Link
+                  key={group.id}
+                  className={`side-row${on ? " on" : ""}`}
+                  href={`/${reg.key}/${group.id}`}
+                >
+                  <span className="side-label">{group.label}</span>
                   <span className="side-count">{count}</span>
-                </div>
+                </Link>
               );
             })}
           </section>

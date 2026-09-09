@@ -1,7 +1,12 @@
-// Pure helpers for the Reeder-style shell: list scoping, row building, and
-// the keymap. Client-safe — no node APIs (mirrors workspace-types.ts).
+// Pure helpers for the Reeder-style shell: list scoping, row building, the
+// cross-pane cursor, and the keymap. Client-safe — no node APIs (mirrors
+// workspace-types.ts).
 
-import { DIMENSION_SEGMENTS } from "./dimensions";
+import {
+  DIMENSION_LABELS,
+  DIMENSION_SEGMENTS,
+  type Dimension,
+} from "./dimensions";
 import {
   activeRegister,
   segmentsOf,
@@ -22,7 +27,6 @@ export interface SectionRow {
   group: string;
   label: string;
   count: number;
-  collapsed: boolean;
 }
 
 export interface ChapterRow {
@@ -61,12 +65,10 @@ export function scopeFor(
 }
 
 // Rows for the middle pane. In all-items scope each group gets a section
-// header; a collapsed group keeps its header but folds its chapter rows away
-// (so p/l skip them). Group scope always shows its chapters.
+// header; group scope shows just that group's chapters.
 export function listRowsFor(
   data: WorkspaceData,
   scope: Scope | null,
-  collapsed: ReadonlySet<string>,
 ): ListRow[] {
   if (!scope) return [];
   const reg = data.registers.find((r) => r.key === scope.key);
@@ -89,18 +91,14 @@ export function listRowsFor(
   for (const group of reg.groups) {
     const groupChapters = chapters.filter((c) => c.group === group.id);
     if (groupChapters.length === 0) continue;
-    const isCollapsed = collapsed.has(`${scope.key}/${group.id}`);
     rows.push({
       kind: "section",
       group: group.id,
       label: group.label,
       count: groupChapters.length,
-      collapsed: isCollapsed,
     });
-    if (!isCollapsed) {
-      for (const chapter of groupChapters) {
-        rows.push({ kind: "chapter", chapter, groupLabel: group.label });
-      }
+    for (const chapter of groupChapters) {
+      rows.push({ kind: "chapter", chapter, groupLabel: group.label });
     }
   }
   return rows;
@@ -120,21 +118,138 @@ export function chapterAt(
   );
 }
 
-export type KeyAction =
-  | "prevArticle"
-  | "nextArticle"
-  | "scrollDown"
-  | "scrollUp"
-  | "toggleGroup"
-  | "navigator";
+// ------------------------------------------------- cross-pane cursor model
 
-// The whole reader keymap. Bare keys only; the shell suppresses them inside
-// form fields and while an overlay is open.
+export type Pane = "sidebar" | "list" | "article";
+
+// The sidebar's keyboard traversal order. Must mirror Sidebar.tsx's render
+// order exactly (hub, tracked dimensions in registry order, then non-empty
+// groups) or the cursor would visit rows that aren't on screen.
+export interface SidebarRow {
+  href: string;
+  key: string; // register key
+  kind: "hub" | "dimension" | "group";
+  dimension?: Dimension;
+  group?: string;
+}
+
+export function sidebarRowsFor(data: WorkspaceData): SidebarRow[] {
+  const rows: SidebarRow[] = [];
+  for (const reg of data.registers) {
+    rows.push({ href: `/${reg.key}`, key: reg.key, kind: "hub" });
+    for (const d of reg.modes) {
+      rows.push({
+        href: `/${reg.key}/${DIMENSION_SEGMENTS[d]}`,
+        key: reg.key,
+        kind: "dimension",
+        dimension: d,
+      });
+    }
+    for (const group of reg.groups) {
+      if (!data.chapters.some((c) => c.key === reg.key && c.group === group.id))
+        continue;
+      rows.push({
+        href: `/${reg.key}/${group.id}`,
+        key: reg.key,
+        kind: "group",
+        group: group.id,
+      });
+    }
+  }
+  return rows;
+}
+
+// Which sidebar row the current URL implies the cursor is on. -1 means
+// unresolvable (no register active); the shell then enters at the top on
+// the next "down".
+export function sidebarIndexFor(
+  data: WorkspaceData,
+  rows: SidebarRow[],
+  pathname: string,
+  scope: Scope | null,
+): number {
+  const reg = activeRegister(data, pathname);
+  if (!reg) return -1;
+  const seg = segmentsOf(pathname);
+  const hubIndex = rows.findIndex(
+    (r) => r.key === reg.key && r.kind === "hub",
+  );
+
+  // Article URLs win over segment interpretation (routing does the same);
+  // the cursor sits on the row that scoped the list.
+  if (chapterAt(data, pathname)) {
+    if (scope?.key === reg.key && scope.kind === "group") {
+      const i = rows.findIndex(
+        (r) => r.key === reg.key && r.kind === "group" && r.group === scope.group,
+      );
+      if (i >= 0) return i;
+    }
+    return hubIndex;
+  }
+  if (seg.length === 4 && seg[2] === "lexicon") {
+    // Term detail belongs to the Lexicon row.
+    return rows.findIndex(
+      (r) => r.key === reg.key && r.dimension === "lexicon",
+    );
+  }
+  if (seg.length === 3) {
+    if (DIMENSION_SEGMENT_SET.has(seg[2])) {
+      return rows.findIndex(
+        (r) =>
+          r.key === reg.key &&
+          r.kind === "dimension" &&
+          DIMENSION_SEGMENTS[r.dimension!] === seg[2],
+      );
+    }
+    const i = rows.findIndex(
+      (r) => r.key === reg.key && r.kind === "group" && r.group === seg[2],
+    );
+    return i >= 0 ? i : hubIndex;
+  }
+  if (seg.length === 2) return hubIndex;
+  return -1;
+}
+
+// Lookup text for `p`/`w` when nothing is text-selected: the thing the
+// cursor is on, derived from the URL.
+export function lookupTextFor(
+  data: WorkspaceData,
+  pathname: string,
+): string | null {
+  const reg = activeRegister(data, pathname);
+  if (!reg) return null;
+  const chapter = chapterAt(data, pathname);
+  if (chapter) return chapter.title;
+  const seg = segmentsOf(pathname);
+  if (seg.length === 4 && seg[2] === "lexicon") {
+    return (
+      data.terms.find((t) => t.key === reg.key && t.slug === seg[3])?.term ??
+      seg[3]
+    );
+  }
+  if (seg.length === 3) {
+    const dim = reg.modes.find((d) => DIMENSION_SEGMENTS[d] === seg[2]);
+    if (dim) return DIMENSION_LABELS[dim];
+    return reg.groups.find((g) => g.id === seg[2])?.label ?? seg[2];
+  }
+  return reg.title;
+}
+
+export type KeyAction = "up" | "down" | "left" | "right" | "lookup";
+
+// The whole reader keymap: two mirrored hand clusters (right-hand IJKL,
+// left-hand EDAF) move the cursor; p/w look up the selected thing. Bare
+// keys only; the shell suppresses them inside form fields and while the
+// popup is open.
 export const KEYMAP: Record<string, KeyAction> = {
-  p: "prevArticle",
-  l: "nextArticle",
-  j: "scrollDown",
-  k: "scrollUp",
-  i: "toggleGroup",
-  a: "navigator",
+  i: "up",
+  e: "up",
+  k: "down",
+  d: "down",
+  j: "left",
+  a: "left",
+  l: "right",
+  f: "right",
+  p: "lookup",
+  w: "lookup",
 };

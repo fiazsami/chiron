@@ -4,10 +4,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   KEYMAP,
-  chapterAt,
   listRowsFor,
+  lookupTextFor,
   scopeFor,
+  sidebarIndexFor,
+  sidebarRowsFor,
   type ChapterRow,
+  type Pane,
   type Scope,
 } from "@/lib/reader";
 import {
@@ -25,16 +28,16 @@ import Sidebar from "./Sidebar";
 const STORE = {
   sidebarWidth: "chiron.sidebarWidth",
   listWidth: "chiron.listWidth",
-  collapsed: "chiron.collapsedGroups",
   scope: "chiron.scope",
 };
 
-// Storage keys of the retired IDE shell, cleared once on load.
+// Storage keys of retired shells/features, cleared once on load.
 const LEGACY_KEYS = [
   "chiron.explorerOpen",
   "chiron.coachOpen",
   "chiron.explorerWidth",
   "chiron.coachWidth",
+  "chiron.collapsedGroups",
 ];
 const LEGACY_SESSION_KEYS = ["chiron.tabs"];
 
@@ -64,7 +67,9 @@ interface NavigatorRequest extends CapturedSelection {
 
 // The Reeder-style shell: sidebar | article list | article pane. Mounted
 // once in the root layout; the URL is the single source of truth for what
-// is selected, and the keymap (lib/reader.ts) drives navigation.
+// is selected. A directional cursor (keymap in lib/reader.ts) moves across
+// panes with left/right and acts within the focused pane with up/down —
+// rows open immediately, the article pane scrolls.
 export default function ReaderShell({
   data,
   children,
@@ -77,7 +82,7 @@ export default function ReaderShell({
 
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_WIDTH.def);
   const [listWidth, setListWidth] = useState(LIST_WIDTH.def);
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [focusedPane, setFocusedPane] = useState<Pane>("list");
   const [scopes, setScopes] = useState<Record<string, string>>({});
   const [nav, setNav] = useState<NavigatorRequest | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -106,14 +111,12 @@ export default function ReaderShell({
     return parseScope(fallback, scopes[fallback]) ?? { kind: "all", key: fallback };
   }, [data, pathname, reg, scopes]);
 
-  const rows = useMemo(
-    () => listRowsFor(data, scope, collapsed),
-    [data, scope, collapsed],
-  );
+  const rows = useMemo(() => listRowsFor(data, scope), [data, scope]);
   const chapterRows = useMemo(
     () => rows.filter((r): r is ChapterRow => r.kind === "chapter"),
     [rows],
   );
+  const sidebarRows = useMemo(() => sidebarRowsFor(data), [data]);
 
   // Restore persisted layout once on mount; the persistence effect below
   // waits for `loaded` so defaults never clobber storage.
@@ -123,13 +126,6 @@ export default function ReaderShell({
       if (sw) setSidebarWidth(clamp(sw, SIDEBAR_WIDTH.min, SIDEBAR_WIDTH.max));
       const lw = Number(localStorage.getItem(STORE.listWidth));
       if (lw) setListWidth(clamp(lw, LIST_WIDTH.min, LIST_WIDTH.max));
-      const storedCollapsed = localStorage.getItem(STORE.collapsed);
-      if (storedCollapsed) {
-        const parsed = JSON.parse(storedCollapsed) as unknown;
-        if (Array.isArray(parsed)) {
-          setCollapsed(new Set(parsed.filter((t) => typeof t === "string")));
-        }
-      }
       const storedScopes = localStorage.getItem(STORE.scope);
       if (storedScopes) {
         const parsed = JSON.parse(storedScopes) as unknown;
@@ -156,12 +152,11 @@ export default function ReaderShell({
     try {
       localStorage.setItem(STORE.sidebarWidth, String(sidebarWidth));
       localStorage.setItem(STORE.listWidth, String(listWidth));
-      localStorage.setItem(STORE.collapsed, JSON.stringify([...collapsed]));
       localStorage.setItem(STORE.scope, JSON.stringify(scopes));
     } catch {
       // Storage unavailable — layout just won't persist.
     }
-  }, [loaded, sidebarWidth, listWidth, collapsed, scopes]);
+  }, [loaded, sidebarWidth, listWidth, scopes]);
 
   // Sticky scope memory: remember the resolved scope per register so
   // article/dimension URLs keep the folder the learner was browsing in.
@@ -208,33 +203,30 @@ export default function ReaderShell({
     el.scrollBy({ top: direction * el.clientHeight * 0.8, behavior: "smooth" });
   }
 
-  function toggleGroup(token: string) {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(token)) next.delete(token);
-      else next.add(token);
-      return next;
-    });
+  // Sidebar traversal: up/down walk the flattened row order and open each
+  // row immediately (the URL stays the source of truth for the cursor).
+  function moveSidebar(delta: number) {
+    if (sidebarRows.length === 0) return;
+    const current = sidebarIndexFor(data, sidebarRows, pathname, scope);
+    // Unresolvable (e.g. at "/"): "down" enters at the top, "up" no-ops.
+    const target = current < 0 ? (delta > 0 ? 0 : -1) : current + delta;
+    if (target < 0 || target >= sidebarRows.length) return;
+    const href = sidebarRows[target].href;
+    if (href !== decodedPath) router.push(href);
   }
 
-  function toggleCurrentGroup() {
-    const chapter = chapterAt(data, pathname);
-    if (chapter) {
-      toggleGroup(`${chapter.key}/${chapter.group}`);
-      return;
-    }
-    // On a group landing page, `i` toggles that group.
-    const seg = segmentsOf(pathname);
-    if (reg && seg.length === 3 && reg.groups.some((g) => g.id === seg[2])) {
-      toggleGroup(`${reg.key}/${seg[2]}`);
-    }
-  }
-
+  // Look-up: a text selection in the article wins; otherwise fall back to
+  // the thing the cursor is on (article title, term name, surface label…).
   function openNavigator(): boolean {
     if (!reg) return false;
     const captured = captureSelection(articleRef.current);
-    if (!captured) return false;
-    setNav({ corpus: reg.corpus, register: reg.register, ...captured });
+    if (captured) {
+      setNav({ corpus: reg.corpus, register: reg.register, ...captured });
+      return true;
+    }
+    const text = lookupTextFor(data, pathname);
+    if (!text) return false;
+    setNav({ corpus: reg.corpus, register: reg.register, selection: text });
     return true;
   }
 
@@ -255,27 +247,24 @@ export default function ReaderShell({
     const action = KEYMAP[e.key];
     if (!action) return;
     switch (action) {
-      case "prevArticle":
+      case "left":
         e.preventDefault();
-        moveSelection(-1);
+        setFocusedPane((p) => (p === "article" ? "list" : "sidebar"));
         break;
-      case "nextArticle":
+      case "right":
         e.preventDefault();
-        moveSelection(1);
+        setFocusedPane((p) => (p === "sidebar" ? "list" : "article"));
         break;
-      case "scrollDown":
+      case "up":
+      case "down": {
         e.preventDefault();
-        scrollArticle(1);
+        const delta = action === "down" ? 1 : -1;
+        if (focusedPane === "sidebar") moveSidebar(delta);
+        else if (focusedPane === "list") moveSelection(delta);
+        else scrollArticle(delta as 1 | -1);
         break;
-      case "scrollUp":
-        e.preventDefault();
-        scrollArticle(-1);
-        break;
-      case "toggleGroup":
-        e.preventDefault();
-        toggleCurrentGroup();
-        break;
-      case "navigator":
+      }
+      case "lookup":
         if (openNavigator()) e.preventDefault();
         break;
     }
@@ -337,21 +326,23 @@ export default function ReaderShell({
       >
         ☰
       </button>
-      <aside className="sidebar" style={{ width: sidebarWidth }}>
-        <Sidebar
-          data={data}
-          pathname={decodedPath}
-          scope={scope}
-          collapsed={collapsed}
-          onToggleGroup={toggleGroup}
-        />
+      <aside
+        className={`sidebar${focusedPane === "sidebar" ? " focused" : ""}`}
+        style={{ width: sidebarWidth }}
+        onPointerDown={() => setFocusedPane("sidebar")}
+      >
+        <Sidebar data={data} pathname={decodedPath} scope={scope} />
       </aside>
       <div
         className={`pane-handle${dragging === "sidebar" ? " dragging" : ""}`}
         onPointerDown={startDrag("sidebar")}
         onDoubleClick={() => setSidebarWidth(SIDEBAR_WIDTH.def)}
       />
-      <section className="list-pane" style={{ width: listWidth }}>
+      <section
+        className={`list-pane${focusedPane === "list" ? " focused" : ""}`}
+        style={{ width: listWidth }}
+        onPointerDown={() => setFocusedPane("list")}
+      >
         <ArticleList
           rows={rows}
           activeHref={decodedPath}
@@ -364,7 +355,11 @@ export default function ReaderShell({
         onPointerDown={startDrag("list")}
         onDoubleClick={() => setListWidth(LIST_WIDTH.def)}
       />
-      <main className="article-pane" ref={articleRef}>
+      <main
+        className={`article-pane${focusedPane === "article" ? " focused" : ""}`}
+        ref={articleRef}
+        onPointerDown={() => setFocusedPane("article")}
+      >
         <div className="article-content">{children}</div>
       </main>
       {nav && (

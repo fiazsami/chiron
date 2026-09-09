@@ -39,9 +39,7 @@ export default function ArticleList({
           row.kind === "section" ? (
             <div key={`s:${row.group}`} className="list-section">
               <span>{row.label}</span>
-              <span className="list-section-count">
-                {row.collapsed ? `${row.count} folded` : row.count}
-              </span>
+              <span className="list-section-count">{row.count}</span>
             </div>
           ) : (
             <Link

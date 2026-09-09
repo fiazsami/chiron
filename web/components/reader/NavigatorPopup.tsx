@@ -18,7 +18,8 @@ export interface CapturedSelection {
 }
 
 // Read the learner's text selection, scoped to the article pane. Null when
-// there is nothing usefully selected — the shell then no-ops the `a` key.
+// there is nothing usefully selected — the shell's look-up keys (p/w) then
+// fall back to the cursor item instead.
 export function captureSelection(
   container: HTMLElement | null,
 ): CapturedSelection | null {
@@ -109,12 +110,14 @@ export default function NavigatorPopup({
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     switch (e.key) {
       case "ArrowDown":
-      case "j":
+      case "k":
+      case "d":
         e.preventDefault();
         setSel((s) => Math.min(Math.max(results.length - 1, 0), s + 1));
         break;
       case "ArrowUp":
-      case "k":
+      case "i":
+      case "e":
         e.preventDefault();
         setSel((s) => Math.max(0, s - 1));
         break;
@@ -127,7 +130,7 @@ export default function NavigatorPopup({
         onClose();
         break;
       default:
-        // Swallow the reader keymap (p/l/i/a) while the popup is open.
+        // Swallow the reader keymap (j/l/a/f/p/w…) while the popup is open.
         if (/^[a-z]$/.test(e.key)) e.preventDefault();
     }
   }
@@ -191,7 +194,9 @@ export default function NavigatorPopup({
               ))}
             </div>
           ))}
-        <p className="navigator-hint">↑↓ / j k navigate · ↵ open · esc close</p>
+        <p className="navigator-hint">
+          ↑↓ / i k / e d navigate · ↵ open · esc close
+        </p>
       </div>
     </div>
   );
