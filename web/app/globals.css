@@ -316,6 +316,16 @@ pre code { background: none; padding: 0; }
   color: var(--muted);
 }
 .nav-anchor-label { margin: 12px 0 3px; font-size: 12px; }
+
+/* Cross-references: the inner cursor highlights with a halo so inline
+   spans light up without layout shift. */
+.nav-ref { cursor: pointer; border-radius: 4px; }
+.nav-ref:hover { background: var(--hover); }
+.nav-ref.sel { background: var(--sel); box-shadow: 0 0 0 3px var(--sel); }
+.nav-ref-row { display: block; padding: 2px 4px; margin: 0 -4px; scroll-margin: 26px; }
+.nav-phrasing-row { margin: 4px 0; font-size: 13.5px; }
+.nav-phrasing-text { font-weight: 600; }
+.nav-detail-more { font-size: 12.5px; }
 .nav-detail-view .anchor-quote {
   font-size: 13.5px; margin: 0 0 4px; padding: 10px 14px;
 }
@@ -445,8 +455,11 @@ summary { cursor: pointer; color: var(--pine); font-size: 14px; }
 .mini-badge.recorded {
   background: none; border: 1px dashed var(--muted); color: var(--muted);
 }
-a.mini-badge.term-chip { text-decoration: none; }
-a.mini-badge.term-chip:hover { background: var(--pine); color: var(--on-accent); }
+.mini-badge.term-chip {
+  text-decoration: none; border: none; font: inherit; font-size: 11px;
+  cursor: pointer;
+}
+.mini-badge.term-chip:hover { background: var(--pine); color: var(--on-accent); }
 
 .hub-modes { justify-content: flex-start; margin: 8px 0 0; }
 .dimension-cards {

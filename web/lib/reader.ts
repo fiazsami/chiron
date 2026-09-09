@@ -199,21 +199,6 @@ export function lookupTextFor(
   const chapter = chapterAt(data, pathname);
   if (chapter) return chapter.title;
   const seg = segmentsOf(pathname);
-  if (seg.length === 4) {
-    if (seg[2] === "lexicon") {
-      return (
-        data.terms.find((t) => t.key === reg.key && t.slug === seg[3])?.term ??
-        seg[3]
-      );
-    }
-    if (seg[2] === "phrasebook") {
-      return (
-        data.phrases.find((p) => p.key === reg.key && p.slug === seg[3])
-          ?.phrase ?? seg[3]
-      );
-    }
-    if (seg[2] === "relations") return seg[3];
-  }
   if (seg.length === 3) {
     const dim = reg.modes.find((d) => DIMENSION_SEGMENTS[d] === seg[2]);
     if (dim) return DIMENSION_LABELS[dim];

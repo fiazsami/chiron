@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import MarkdownArticle from "@/components/MarkdownArticle";
+import TermChip from "@/components/reader/TermChip";
 import {
   accentClass,
   findCorpus,
@@ -59,13 +59,13 @@ function TermLinks({
   return (
     <span className="mini-badges">
       {slugs.map((s) => (
-        <Link
+        <TermChip
           key={s}
-          className="mini-badge term-chip"
-          href={`/${corpus}/${register}/lexicon/${s}`}
-        >
-          {lexicon[s]?.term ?? s}
-        </Link>
+          corpus={corpus}
+          register={register}
+          slug={s}
+          name={lexicon[s]?.term ?? s}
+        />
       ))}
     </span>
   );

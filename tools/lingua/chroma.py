@@ -11,8 +11,8 @@ never leave a stale store behind. `check` warns (and `check --strict` fails)
 on a stale store instead of touching it.
 
 Documents carry the prose an embedding should see; metadata carries the
-viewer route (`href`) and provenance so a retrieval hit can be resolved back
-to a page without re-reading the YAML.
+bit's identity and provenance — the web navigator resolves hits against the
+data files itself (bits have no pages of their own).
 
 The module is also runnable as a query bridge for the web viewer's smart
 navigator (which cannot read an embedded chroma store from Node):
@@ -78,8 +78,6 @@ def build_bits(
     bundle: RegisterBundle,
 ) -> tuple[list[str], list[str], list[dict]]:
     """(ids, documents, metadatas) for every bit of the register."""
-    corpus = bundle.corpus
-    base = f"/{corpus.name}/{corpus.register}"
     ids: list[str] = []
     docs: list[str] = []
     metas: list[dict] = []
@@ -97,7 +95,6 @@ def build_bits(
             metas.append({
                 "kind": "term",
                 "slug": slug,
-                "href": f"{base}/lexicon/{slug}",
                 "defined_in": entry["defined_in"],
                 "chapters": chapters_of(entry["anchors"]),
             })
@@ -112,7 +109,6 @@ def build_bits(
             metas.append({
                 "kind": "phrase",
                 "slug": slug,
-                "href": f"{base}/phrasebook/{slug}",
                 "terms": ", ".join(entry["terms"]),
                 "chapters": chapters_of(entry["anchors"]),
             })
@@ -134,7 +130,6 @@ def build_bits(
             metas.append({
                 "kind": "relation",
                 "slug": f"{edge['from']}--{edge['type']}--{edge['to']}",
-                "href": f"{base}/relations/{edge['type']}",
                 "type": edge["type"],
                 "from": edge["from"],
                 "to": edge["to"],

@@ -38,19 +38,19 @@ export interface WorkspaceChapter {
   counts: { terms: number; phrases: number };
 }
 
+// Terms and phrases have no pages — the bit modal is their only surface —
+// so these carry identity and display fields only.
 export interface WorkspaceTerm {
   key: string; // register key
   slug: string;
   term: string;
   kind: string;
-  href: string;
 }
 
 export interface WorkspacePhrase {
   key: string; // register key
   slug: string;
   phrase: string;
-  href: string;
 }
 
 export interface WorkspaceData {

@@ -53,21 +53,10 @@ export async function getWorkspace(): Promise<WorkspaceData> {
     });
 
     for (const [slug, entry] of Object.entries(lexicon)) {
-      terms.push({
-        key,
-        slug,
-        term: entry.term,
-        kind: entry.kind,
-        href: `/${key}/lexicon/${slug}`,
-      });
+      terms.push({ key, slug, term: entry.term, kind: entry.kind });
     }
     for (const [slug, entry] of Object.entries(phrasebook)) {
-      phrases.push({
-        key,
-        slug,
-        phrase: entry.phrase,
-        href: `/${key}/phrasebook/${slug}`,
-      });
+      phrases.push({ key, slug, phrase: entry.phrase });
     }
   }
   terms.sort((a, b) => a.term.localeCompare(b.term));

@@ -24,14 +24,18 @@ import {
   type Phrasebook,
   type RelationEdge,
 } from "./lingua";
-import type {
-  Destination,
-  NavigateRequest,
-  PhraseBit,
-  RelationsBit,
-  TermBit,
+import {
+  destinationKey,
+  type BitAnchor,
+  type BitDestination,
+  type BitKind,
+  type Destination,
+  type NavigateRequest,
+  type PhraseBit,
+  type RelationsBit,
+  type TermBit,
 } from "./navigator-types";
-import type { LexiconEntry, Phrase } from "./lingua";
+import type { Anchor, LexiconEntry, Phrase } from "./lingua";
 
 export const CREDENTIAL_HINT =
   "set ANTHROPIC_API_KEY in web/.env.local or run `claude /login`";
@@ -347,17 +351,60 @@ export function parseResultText(text: string): unknown {
 const MAX_RESULTS = 6;
 const DETAIL_MAX = 160;
 
-// Bounds for the inline bit payloads the popup's detail view renders.
+// Bounds for the inline flashcard payloads the modal renders. Assimilation
+// view, not a reference dump — totals carry the real counts.
 const BIT_ANCHOR_CAP = 3;
 const BIT_EDGE_CAP = 12;
+const BIT_PHRASING_CAP = 8;
+const BIT_RELATION_CAP = 10;
 const BIT_QUOTE_MAX = 240;
 const BIT_GLOSS_MAX = 160;
 
-function termBit(ctx: NavigatorContext, entry: LexiconEntry): TermBit {
+function anchorBits(ctx: NavigatorContext, anchors: Anchor[]): BitAnchor[] {
   const { name, register } = ctx.corpus;
+  return anchors.slice(0, BIT_ANCHOR_CAP).map((a) => {
+    const chapter = chapterByLocalId(ctx.manifest, name, register, a.chapter);
+    return {
+      chapter: a.chapter,
+      ...(chapter
+        ? { chapterTitle: chapter.title, chapterHref: chapterHref(chapter) }
+        : {}),
+      quote: truncate(a.quote, BIT_QUOTE_MAX),
+    };
+  });
+}
+
+function termBit(
+  ctx: NavigatorContext,
+  slug: string,
+  entry: LexiconEntry,
+): TermBit {
+  const { name, register } = ctx.corpus;
+  const termName = (s: string) => ctx.lexicon[s]?.term ?? s;
   const defined = chapterByLocalId(
     ctx.manifest, name, register, entry.defined_in,
   );
+  const phrasings = Object.entries(ctx.phrasebook).filter(([, p]) =>
+    p.terms.includes(slug),
+  );
+  const related = [
+    ...ctx.edges
+      .filter((e) => e.from === slug)
+      .map((e) => ({
+        dir: "out" as const,
+        type: e.type as string,
+        other: { id: e.to, name: termName(e.to) },
+        gloss: truncate(e.gloss, BIT_GLOSS_MAX),
+      })),
+    ...ctx.edges
+      .filter((e) => e.to === slug)
+      .map((e) => ({
+        dir: "in" as const,
+        type: e.type as string,
+        other: { id: e.from, name: termName(e.from) },
+        gloss: truncate(e.gloss, BIT_GLOSS_MAX),
+      })),
+  ];
   return {
     kind: "term",
     termKind: entry.kind,
@@ -371,12 +418,18 @@ function termBit(ctx: NavigatorContext, entry: LexiconEntry): TermBit {
           },
         }
       : {}),
-    anchors: entry.anchors.slice(0, BIT_ANCHOR_CAP).map((a) => ({
-      chapter: a.chapter,
-      chapterTitle: chapterByLocalId(ctx.manifest, name, register, a.chapter)
-        ?.title,
-      quote: truncate(a.quote, BIT_QUOTE_MAX),
-    })),
+    anchors: anchorBits(ctx, entry.anchors),
+    totalAnchors: entry.anchors.length,
+    phrasings: phrasings
+      .slice(0, BIT_PHRASING_CAP)
+      .map(([id, p]) => ({
+        id,
+        phrase: p.phrase,
+        intent: truncate(p.intent, BIT_GLOSS_MAX),
+      })),
+    morePhrasings: Math.max(0, phrasings.length - BIT_PHRASING_CAP),
+    relations: related.slice(0, BIT_RELATION_CAP),
+    moreRelations: Math.max(0, related.length - BIT_RELATION_CAP),
   };
 }
 
@@ -386,21 +439,67 @@ function phraseBit(ctx: NavigatorContext, phrase: Phrase): PhraseBit {
     phrase: phrase.phrase,
     intent: phrase.intent,
     ...(phrase.template ? { template: phrase.template } : {}),
-    terms: phrase.terms.map((s) => ctx.lexicon[s]?.term ?? s),
+    terms: phrase.terms.map((s) => ({
+      id: s,
+      name: ctx.lexicon[s]?.term ?? s,
+    })),
+    anchors: anchorBits(ctx, phrase.anchors),
+    totalAnchors: phrase.anchors.length,
   };
 }
 
 function relationsBit(ctx: NavigatorContext, type: string): RelationsBit {
-  const name = (s: string) => ctx.lexicon[s]?.term ?? s;
+  const termName = (s: string) => ctx.lexicon[s]?.term ?? s;
   const typed = ctx.edges.filter((e) => e.type === type);
   return {
     kind: "relations",
     edges: typed.slice(0, BIT_EDGE_CAP).map((e) => ({
-      from: name(e.from),
-      to: name(e.to),
+      from: { id: e.from, name: termName(e.from) },
+      to: { id: e.to, name: termName(e.to) },
       gloss: truncate(e.gloss, BIT_GLOSS_MAX),
     })),
     more: Math.max(0, typed.length - BIT_EDGE_CAP),
+  };
+}
+
+// The one bit-to-flashcard entry point, shared by resolveDestinations and
+// POST /api/bit. Null when the id doesn't resolve against the data files.
+export function buildBitDestination(
+  ctx: NavigatorContext,
+  kind: BitKind,
+  id: string,
+  reason = "",
+): BitDestination | null {
+  if (kind === "term") {
+    const entry = ctx.lexicon[id];
+    if (!entry) return null;
+    return {
+      kind: "term",
+      id,
+      title: entry.term,
+      detail: truncate(reason, DETAIL_MAX),
+      bit: termBit(ctx, id, entry),
+    };
+  }
+  if (kind === "phrase") {
+    const phrase = ctx.phrasebook[id];
+    if (!phrase) return null;
+    return {
+      kind: "phrase",
+      id,
+      title: truncate(phrase.phrase, 80),
+      detail: truncate(reason, DETAIL_MAX),
+      bit: phraseBit(ctx, phrase),
+    };
+  }
+  const bit = relationsBit(ctx, id);
+  if (bit.edges.length === 0) return null;
+  return {
+    kind: "relations",
+    id,
+    title: `relations: ${id}`,
+    detail: truncate(reason, DETAIL_MAX),
+    bit,
   };
 }
 
@@ -466,52 +565,30 @@ export function resolveDestinations(
       const ch = chapterByLocalId(ctx.manifest, name, register, r.id);
       if (ch) {
         dest = {
+          kind: "chapter",
           href: chapterHref(ch),
           title: `${ch.number} ${ch.title}`,
-          kind: "chapter",
           detail: truncate(r.reason, DETAIL_MAX),
         };
       }
-    } else if (r.kind === "term") {
-      const entry = ctx.lexicon[r.id];
-      if (entry) {
-        dest = {
-          href: `/${name}/${register}/lexicon/${r.id}`,
-          title: entry.term,
-          kind: "term",
-          detail: truncate(r.reason, DETAIL_MAX),
-          bit: termBit(ctx, entry),
-        };
-      }
-    } else if (r.kind === "phrase") {
-      const phrase = ctx.phrasebook[r.id];
-      if (phrase) {
-        dest = {
-          href: `/${name}/${register}/phrasebook/${r.id}`,
-          title: truncate(phrase.phrase, 80),
-          kind: "phrase",
-          detail: truncate(r.reason, DETAIL_MAX),
-          bit: phraseBit(ctx, phrase),
-        };
-      }
-    } else if (r.kind === "relations") {
-      const bit = relationsBit(ctx, r.id);
-      if (bit.edges.length > 0) {
-        dest = {
-          href: `/${name}/${register}/relations/${r.id}`,
-          title: `relations: ${r.id}`,
-          kind: "relations",
-          detail: truncate(r.reason, DETAIL_MAX),
-          bit,
-        };
-      }
+    } else if (
+      r.kind === "term" ||
+      r.kind === "phrase" ||
+      r.kind === "relations"
+    ) {
+      dest = buildBitDestination(ctx, r.kind, r.id, r.reason);
     }
     if (!dest) continue;
-    if (decodedPath && (dest.href === decodedPath || dest.href === pathname)) {
+    if (
+      dest.kind === "chapter" &&
+      decodedPath &&
+      (dest.href === decodedPath || dest.href === pathname)
+    ) {
       continue; // never suggest the page they're on
     }
-    if (seen.has(dest.href)) continue;
-    seen.add(dest.href);
+    const key = destinationKey(dest);
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push(dest);
     if (out.length === MAX_RESULTS) break;
   }

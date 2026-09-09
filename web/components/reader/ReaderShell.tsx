@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   KEYMAP,
   listRowsFor,
@@ -20,9 +20,10 @@ import {
 } from "@/lib/workspace-types";
 import ArticleList from "./ArticleList";
 import CommandPalette from "./CommandPalette";
+import { LookupContext, type OpenBitRef } from "./lookup-context";
 import NavigatorPopup, {
   captureSelection,
-  type CapturedSelection,
+  type NavigatorEntry,
 } from "./NavigatorPopup";
 import Sidebar from "./Sidebar";
 
@@ -61,9 +62,10 @@ function encodeScope(scope: Scope): string {
   return scope.kind === "all" ? "all" : `group:${scope.group}`;
 }
 
-interface NavigatorRequest extends CapturedSelection {
+interface NavigatorRequest {
   corpus: string;
   register: string;
+  entry: NavigatorEntry;
 }
 
 // The Reeder-style shell: sidebar | article list | article pane. Mounted
@@ -218,19 +220,32 @@ export default function ReaderShell({
   }
 
   // Look-up: a text selection in the article wins; otherwise fall back to
-  // the thing the cursor is on (article title, term name, surface label…).
+  // the thing the cursor is on (article title, group label…).
   function openNavigator(): boolean {
     if (!reg) return false;
     const captured = captureSelection(articleRef.current);
-    if (captured) {
-      setNav({ corpus: reg.corpus, register: reg.register, ...captured });
-      return true;
-    }
-    const text = lookupTextFor(data, pathname);
-    if (!text) return false;
-    setNav({ corpus: reg.corpus, register: reg.register, selection: text });
+    const entry: NavigatorEntry | null = captured
+      ? { mode: "lookup", ...captured }
+      : (() => {
+          const text = lookupTextFor(data, pathname);
+          return text ? { mode: "lookup", selection: text } : null;
+        })();
+    if (!entry) return false;
+    setNav({ corpus: reg.corpus, register: reg.register, entry });
     return true;
   }
+
+  // Direct bit entry — ⌘K bit items and term chips inside page content open
+  // the modal on a single flashcard (bits have no pages of their own).
+  const openBit = useCallback((ref: OpenBitRef) => {
+    setPaletteOpen(false);
+    setNav({
+      corpus: ref.corpus,
+      register: ref.register,
+      entry: { mode: "bit", kind: ref.kind, id: ref.id },
+    });
+  }, []);
+  const lookupApi = useMemo(() => ({ openBit }), [openBit]);
 
   // Single window listener, attached once; the ref closes over fresh state
   // every render.
@@ -331,6 +346,7 @@ export default function ReaderShell({
     : "";
 
   return (
+    <LookupContext.Provider value={lookupApi}>
     <div className={`reader${mobileNavOpen ? " mobile-nav" : ""}`}>
       <button
         className="mobile-toggle"
@@ -380,14 +396,18 @@ export default function ReaderShell({
           corpus={nav.corpus}
           register={nav.register}
           pathname={pathname}
-          selection={nav.selection}
-          context={nav.context}
+          entry={nav.entry}
           onClose={() => setNav(null)}
         />
       )}
       {paletteOpen && (
-        <CommandPalette data={data} onClose={() => setPaletteOpen(false)} />
+        <CommandPalette
+          data={data}
+          openBit={openBit}
+          onClose={() => setPaletteOpen(false)}
+        />
       )}
     </div>
+    </LookupContext.Provider>
   );
 }

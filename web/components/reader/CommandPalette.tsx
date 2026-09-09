@@ -3,12 +3,23 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { WorkspaceData } from "@/lib/workspace-types";
+import type { OpenBitRef } from "./lookup-context";
 
-interface PaletteItem {
-  href: string;
-  label: string;
-  detail: string;
-  kind: "page" | "chapter" | "term" | "phrase" | "relations";
+// Pages/chapters navigate; bits open the modal (they have no pages).
+type PaletteItem = { label: string; detail: string } & (
+  | { kind: "page" | "chapter"; href: string }
+  | { kind: "term" | "phrase" | "relations"; bit: OpenBitRef }
+);
+
+function itemKey(item: PaletteItem): string {
+  return "href" in item
+    ? `${item.kind}:${item.href}`
+    : `bit:${item.bit.kind}:${item.bit.corpus}/${item.bit.register}/${item.bit.id}`;
+}
+
+function splitKey(key: string): { corpus: string; register: string } {
+  const [corpus, register] = key.split("/");
+  return { corpus, register };
 }
 
 const GLYPHS: Record<PaletteItem["kind"], string> = {
@@ -21,14 +32,16 @@ const GLYPHS: Record<PaletteItem["kind"], string> = {
 
 const MAX_RESULTS = 40;
 
-// ⌘K quick-open over every page the workspace knows: the corpora index,
-// register hubs, group landings, chapters, and the lookup-only bits (terms,
-// phrasings, relation types).
+// ⌘K quick-open over everything the workspace knows: pages (corpora index,
+// register hubs, group landings, chapters) navigate; bits (terms, phrasings,
+// relation types) open the lookup modal.
 export default function CommandPalette({
   data,
+  openBit,
   onClose,
 }: {
   data: WorkspaceData;
+  openBit: (ref: OpenBitRef) => void;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -53,7 +66,7 @@ export default function CommandPalette({
       }
       for (const type of r.relationTypes) {
         out.push({
-          href: `/${r.key}/relations/${type}`,
+          bit: { ...splitKey(r.key), kind: "relations", id: type },
           label: type,
           detail: `relations · ${r.key}`,
           kind: "relations",
@@ -70,7 +83,7 @@ export default function CommandPalette({
     }
     for (const t of data.terms) {
       out.push({
-        href: t.href,
+        bit: { ...splitKey(t.key), kind: "term", id: t.slug },
         label: t.term,
         detail: `${t.kind} · ${t.key}`,
         kind: "term",
@@ -78,7 +91,7 @@ export default function CommandPalette({
     }
     for (const p of data.phrases) {
       out.push({
-        href: p.href,
+        bit: { ...splitKey(p.key), kind: "phrase", id: p.slug },
         label: p.phrase,
         detail: `phrasing · ${p.key}`,
         kind: "phrase",
@@ -119,8 +132,12 @@ export default function CommandPalette({
 
   function go(item: PaletteItem | undefined) {
     if (!item) return;
-    router.push(item.href);
-    onClose();
+    if ("href" in item) {
+      router.push(item.href);
+      onClose();
+    } else {
+      openBit(item.bit); // closes the palette via the shell
+    }
   }
 
   return (
@@ -160,7 +177,7 @@ export default function CommandPalette({
           )}
           {matches.map((item, i) => (
             <div
-              key={`${item.kind}:${item.href}`}
+              key={itemKey(item)}
               ref={(el) => {
                 rowRefs.current[i] = el;
               }}
