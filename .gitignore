@@ -1,6 +1,9 @@
 # Python-generated files
 __pycache__/
 
+# Secrets — .env.template is the tracked reference; real env files are not
+.env
+
 # Node (web/ viewer)
 node_modules/
 web/.next/
