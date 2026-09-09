@@ -197,6 +197,23 @@ _DIM_SCHEMAS = {
 }
 
 
+# Constraint keywords the structured-outputs schema subset rejects (the API
+# returns invalid_request naming them, e.g. "'maxItems' is not supported").
+# Dropping them is harmless: validate_payload enforces every cap at apply
+# time — the API schema only has to pin the structure.
+_UNSUPPORTED_KEYS = {"maxItems", "minItems", "maxLength", "minLength",
+                     "pattern", "format"}
+
+
+def _sanitize(schema):
+    if isinstance(schema, dict):
+        return {k: _sanitize(v) for k, v in schema.items()
+                if k not in _UNSUPPORTED_KEYS}
+    if isinstance(schema, list):
+        return [_sanitize(v) for v in schema]
+    return schema
+
+
 def result_schema(modes: list[str]) -> dict:
     """One schema per run mode-set: requested dimensions are required, so the
     model can never silently skip one; nothing else is representable."""
@@ -219,12 +236,12 @@ def result_schema(modes: list[str]) -> dict:
     for slug in modes:
         props[slug] = _DIM_SCHEMAS[slug]
         required.append(slug)
-    return {
+    return _sanitize({
         "type": "object",
         "additionalProperties": False,
         "required": required,
         "properties": props,
-    }
+    })
 
 
 # --- prompt assembly ---------------------------------------------------------
@@ -396,7 +413,11 @@ def collect(bundle: RegisterBundle, wait: bool) -> int:
         key = result.custom_id
         chapter_id = run["chapters"].get(key, {}).get("id", key)
         if result.result.type != "succeeded":
-            failed.append((chapter_id, result.result.type))
+            detail = result.result.type
+            if result.result.type == "errored":
+                err = result.result.error.model_dump()
+                detail = err.get("error", {}).get("message", "errored")
+            failed.append((chapter_id, detail))
             continue
         message = result.result.message
         usage_in += message.usage.input_tokens

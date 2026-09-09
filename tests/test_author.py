@@ -187,3 +187,16 @@ def test_apply_check_writes_nothing(markdown_corpus, capsys):
     assert code == 0
     assert "would apply" in out
     assert not (corpora_dir / "demo-course/v1/data/lexicon.yaml").exists()
+
+
+def test_schema_strips_unsupported_constraint_keywords():
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                assert key not in authormod._UNSUPPORTED_KEYS
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(authormod.result_schema(["lexicon", "phrasebook", "concept-relations"]))
