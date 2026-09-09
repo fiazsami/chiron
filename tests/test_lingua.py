@@ -394,3 +394,59 @@ def test_load_env(tmp_path, monkeypatch):
     assert "CHIRON_TEST_EMPTY" not in os.environ  # blank template line
     assert os.environ["CHIRON_TEST_PRESET"] == "from-shell"  # shell wins
     load_env(tmp_path / "missing.env")  # absent file is a no-op
+
+
+# --- chroma staleness ------------------------------------------------------
+
+def test_chroma_store_stays_fresh_across_builds(
+    tmp_path, markdown_corpus, capsys, monkeypatch
+):
+    from tools.lingua import chroma as chromamod
+
+    corpora, _ = markdown_corpus
+    # No store: builds and checks say nothing about chroma.
+    code, out = run(corpora, "build", capsys=capsys)
+    assert code == 0
+    assert "chroma" not in out
+    code, out = run(corpora, "check", capsys=capsys)
+    assert "chroma" not in out
+
+    # An opted-in store without a fingerprint counts as stale; check warns
+    # and strict check fails.
+    store = corpora / "demo-course" / "v1" / "chroma"
+    store.mkdir()
+    (store / "chroma.sqlite3").touch()
+    code, out = run(corpora, "check", capsys=capsys)
+    assert "chroma store is stale" in out
+    code, _ = run(corpora, "check", "--strict", capsys=capsys)
+    assert code == 1
+
+    # Build refreshes it. ingest is stubbed: tests never load chromadb or
+    # the embedding model — the refresh semantics are what's under test.
+    def fake_ingest(bundle):
+        bits = chromamod.build_bits(bundle)
+        (chromamod.store_dir(bundle) / chromamod.FINGERPRINT_FILE).write_text(
+            chromamod.bits_fingerprint(*bits) + "\n")
+        return len(bits[0])
+
+    monkeypatch.setattr(chromamod, "ingest", fake_ingest)
+    code, out = run(corpora, "build", capsys=capsys)
+    assert code == 0
+    assert "chroma: rebuilt demo-course/v1 store" in out
+
+    # Fresh store: both build and check go quiet.
+    code, out = run(corpora, "build", capsys=capsys)
+    assert "chroma:" not in out
+    code, out = run(corpora, "check", capsys=capsys)
+    assert "chroma store is stale" not in out
+
+    # A data write drifts the bits; the next build re-ingests them.
+    code, _ = set_payload(
+        tmp_path, corpora, "lexicon", "foundations/01", LEX_PAYLOAD)
+    assert code == 0
+    code, out = run(corpora, "check", capsys=capsys)
+    assert "chroma store is stale" in out
+    code, out = run(corpora, "build", capsys=capsys)
+    assert "chroma: rebuilt demo-course/v1 store (1 bits)" in out
+    code, out = run(corpora, "check", capsys=capsys)
+    assert "chroma store is stale" not in out

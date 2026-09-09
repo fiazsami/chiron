@@ -136,7 +136,8 @@ def _parser() -> argparse.ArgumentParser:
         "chroma",
         help="load each register's bits (terms, phrasings, relation edges) "
              "into corpora/<name>/<vN>/chroma/ — opt-in; the default "
-             "embedding model is downloaded on first run")
+             "embedding model is downloaded on first run. Once a store "
+             "exists, plain builds keep it fresh automatically")
     chroma.add_argument("targets", nargs="*", metavar="REGISTER",
                         help="registers (<corpus>/<vN>); default: all")
 
@@ -456,6 +457,29 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
         print(f"wrote {len(written)} pages under "
               f"corpora/<corpus>/<vN>/pages/"
               + (f", removed {len(removed)} stale" if removed else ""))
+        # Registers that opted into a chroma store get it refreshed whenever
+        # the bits drift — /translate ends in a build, so applied authoring
+        # runs never leave a stale store behind.
+        from . import chroma as chromamod
+        for bundle in bundles:
+            key = f"{bundle.corpus.name}/{bundle.corpus.register}"
+            try:
+                count = chromamod.refresh_if_stale(bundle)
+            except LinguaDataError as exc:
+                warnings.append(f"{key}: chroma store is stale but {exc}")
+                continue
+            if count is not None:
+                print(f"chroma: rebuilt {key} store ({count} bits)")
+
+    if args.cmd == "check":
+        # A stale store is drift like any other; check reports, build fixes.
+        from . import chroma as chromamod
+        for bundle in bundles:
+            if chromamod.staleness(bundle) == "stale":
+                key = f"{bundle.corpus.name}/{bundle.corpus.register}"
+                warnings.append(
+                    f"{key}: chroma store is stale — rebuild with "
+                    f"`uv run python -m tools.lingua` (build) or `... chroma`")
 
     _report(bundles, warnings)
 

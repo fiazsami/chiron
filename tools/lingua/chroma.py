@@ -2,10 +2,13 @@
 
 Each bit — one lexicon term, one phrasing, one relation edge — becomes one
 document in a "bits" collection persisted under corpora/<name>/<vN>/chroma/.
-Ingestion is opt-in (`uv run python -m tools.lingua chroma`) rather than part
-of the default build: chromadb's default embedding function downloads a small
-ONNX model on first use, and the web viewer's smart navigator does not query
-the store yet (ingestion now, retrieval later).
+Creating a store is opt-in (`uv run python -m tools.lingua chroma`) because
+chromadb's default embedding function downloads a small ONNX model on first
+use. Once a store exists, the default build keeps it fresh: a fingerprint of
+the built bits is kept beside the store, and a build whose bits no longer
+match re-ingests automatically — so /translate runs (which end in a build)
+never leave a stale store behind. `check` warns (and `check --strict` fails)
+on a stale store instead of touching it.
 
 Documents carry the prose an embedding should see; metadata carries the
 viewer route (`href`) and provenance so a retrieval hit can be resolved back
@@ -21,6 +24,7 @@ the directory holds no store (the viewer then falls back to its candidate
 index).
 """
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -29,6 +33,45 @@ from .dimensions.base import LinguaDataError
 from .status import RegisterBundle
 
 COLLECTION = "bits"
+
+# Written beside the store at ingest time; a mismatch against the current
+# data files marks the store stale. A sidecar (not collection metadata) so
+# staleness checks never have to import chromadb.
+FINGERPRINT_FILE = ".bits-fingerprint"
+
+
+def store_dir(bundle: RegisterBundle) -> Path:
+    return bundle.data_dir.parent / "chroma"
+
+
+def bits_fingerprint(
+    ids: list[str], docs: list[str], metas: list[dict]
+) -> str:
+    payload = json.dumps([ids, docs, metas], sort_keys=True,
+                         ensure_ascii=False)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def staleness(bundle: RegisterBundle) -> str:
+    """"absent" (never opted in), "fresh", or "stale". Pure file reads plus
+    bit building — safe for `check`, which writes nothing."""
+    chroma_dir = store_dir(bundle)
+    if not (chroma_dir / "chroma.sqlite3").exists():
+        return "absent"
+    try:
+        stored = (chroma_dir / FINGERPRINT_FILE).read_text().strip()
+    except OSError:
+        return "stale"  # store without a fingerprint — rebuild to be sure
+    return "fresh" if stored == bits_fingerprint(*build_bits(bundle)) else "stale"
+
+
+def refresh_if_stale(bundle: RegisterBundle) -> int | None:
+    """Re-ingest an existing store whose bits drifted from data/*.yaml.
+    Returns the bit count when a rebuild happened, else None. Never creates
+    a store — opting in stays explicit via the chroma subcommand."""
+    if staleness(bundle) != "stale":
+        return None
+    return ingest(bundle)
 
 
 def build_bits(
@@ -115,7 +158,7 @@ def ingest(bundle: RegisterBundle) -> int:
         ) from exc
 
     ids, docs, metas = build_bits(bundle)
-    chroma_dir = bundle.data_dir.parent / "chroma"
+    chroma_dir = store_dir(bundle)
     client = chromadb.PersistentClient(
         path=str(chroma_dir), settings=Settings(anonymized_telemetry=False)
     )
@@ -130,6 +173,8 @@ def ingest(bundle: RegisterBundle) -> int:
     )
     if ids:
         collection.add(ids=ids, documents=docs, metadatas=metas)
+    (chroma_dir / FINGERPRINT_FILE).write_text(
+        bits_fingerprint(ids, docs, metas) + "\n")
     return len(ids)
 
 
