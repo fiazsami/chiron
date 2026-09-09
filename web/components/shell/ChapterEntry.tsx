@@ -19,18 +19,29 @@ export default function ChapterEntry({
   const stale = modes.filter((d) => chapter.states[d] === "stale");
   const registerKey = substrate.register.key;
 
-  const termRow = (slug: string, note?: string) => {
-    const t = substrate.terms[slug];
-    if (!t) return null;
+  // Sections list identity only — a term's definition is seen by peeking
+  // or opening it, like a flashcard. Refs render as a wrapped chip list.
+  const termChips = (slugs: string[]) => {
+    const terms = slugs.flatMap((s) =>
+      substrate.terms[s] ? [substrate.terms[s]] : [],
+    );
     return (
-      <li key={slug} className="phrasing-row">
-        <Reference href={t.href} headword={t.term} kind="term">
-          {t.term}
-        </Reference>
-        <span className="intent">
-          {note ?? t.definition.split("\n", 1)[0]}
-        </span>
-      </li>
+      <p className="entry-reading ref-list" style={{ marginTop: 0 }}>
+        {terms.map((t, i) => (
+          <span key={t.slug}>
+            {i > 0 && ", "}
+            <Reference
+              href={t.href}
+              headword={t.term}
+              kind="term"
+              className="term-chip"
+            >
+              {t.term}
+              <span className="kind">{t.kind}</span>
+            </Reference>
+          </span>
+        ))}
+      </p>
     );
   };
 
@@ -132,24 +143,13 @@ export default function ChapterEntry({
 
       {chapter.defines.length > 0 && (
         <Section title="Defines" count={chapter.defines.length}>
-          <ul>{chapter.defines.map((slug) => termRow(slug))}</ul>
+          {termChips(chapter.defines)}
         </Section>
       )}
 
       {chapter.mentions.length > 0 && (
         <Section title="Mentions" count={chapter.mentions.length}>
-          <ul>
-            {chapter.mentions.map((slug) => {
-              const t = substrate.terms[slug];
-              const definedIn = t
-                ? substrate.chapters[t.definedIn]
-                : undefined;
-              return termRow(
-                slug,
-                definedIn ? `defined in ${definedIn.title}` : undefined,
-              );
-            })}
-          </ul>
+          {termChips(chapter.mentions)}
         </Section>
       )}
 
@@ -164,7 +164,6 @@ export default function ChapterEntry({
                   <Reference href={p.href} headword={p.phrase} kind="phrase">
                     {p.phrase}
                   </Reference>
-                  <span className="intent">{p.intent}</span>
                 </li>
               );
             })}
@@ -181,17 +180,14 @@ export default function ChapterEntry({
               const to = substrate.terms[e.to]?.term ?? e.to;
               return (
                 <li key={id} className="relation-line">
-                  <div>
-                    <span className="edge-type">{e.type}</span>{" "}
-                    <Reference
-                      href={e.href}
-                      headword={`${from} → ${to}`}
-                      kind="edge"
-                    >
-                      {from} → {to}
-                    </Reference>
-                  </div>
-                  <div className="gloss">{e.gloss}</div>
+                  <span className="edge-type">{e.type}</span>{" "}
+                  <Reference
+                    href={e.href}
+                    headword={`${from} → ${to}`}
+                    kind="edge"
+                  >
+                    {from} → {to}
+                  </Reference>
                 </li>
               );
             })}

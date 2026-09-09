@@ -24,17 +24,14 @@ function EdgeLine({
   const term = substrate.terms[other];
   return (
     <li className="relation-line">
-      <div>
-        <span className="edge-type">{edge.type}</span>{" "}
-        {term ? (
-          <Reference href={term.href} headword={term.term} kind="term">
-            {term.term}
-          </Reference>
-        ) : (
-          other
-        )}
-      </div>
-      <div className="gloss">{edge.gloss}</div>
+      <span className="edge-type">{edge.type}</span>{" "}
+      {term ? (
+        <Reference href={term.href} headword={term.term} kind="term">
+          {term.term}
+        </Reference>
+      ) : (
+        other
+      )}
     </li>
   );
 }
@@ -95,7 +92,6 @@ export default function TermEntry({
                   <Reference href={p.href} headword={p.phrase} kind="phrase">
                     {p.phrase}
                   </Reference>
-                  <span className="intent">{p.intent}</span>
                 </li>
               );
             })}

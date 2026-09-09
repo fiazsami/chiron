@@ -109,6 +109,8 @@ export default function ScopeScreen({ data }: { data: ScopeData }) {
             <p className="scope-provenance">
               checkout {reg.checkout}
               {reg.staleCount > 0 && ` · ${reg.staleCount} stale`}
+              {reg.recordedModes.length > 0 &&
+                ` · recorded: ${reg.recordedModes.join(", ")}`}
               {Object.entries(reg.urls).map(([name, url]) => (
                 <span key={name}>
                   {" · "}

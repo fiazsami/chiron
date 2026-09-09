@@ -86,23 +86,20 @@ export default function EdgeEntry({
                   const other = substrate.terms[otherSlug];
                   return (
                     <li key={e.id} className="relation-line">
-                      <div>
-                        <span className="edge-arrow">
-                          {outgoing ? "→" : "←"}
-                        </span>{" "}
-                        {other ? (
-                          <Reference
-                            href={e.href}
-                            headword={other.term}
-                            kind="edge"
-                          >
-                            {other.term}
-                          </Reference>
-                        ) : (
-                          otherSlug
-                        )}
-                      </div>
-                      <div className="gloss">{e.gloss}</div>
+                      <span className="edge-arrow">
+                        {outgoing ? "→" : "←"}
+                      </span>{" "}
+                      {other ? (
+                        <Reference
+                          href={e.href}
+                          headword={other.term}
+                          kind="edge"
+                        >
+                          {other.term}
+                        </Reference>
+                      ) : (
+                        otherSlug
+                      )}
                     </li>
                   );
                 })}

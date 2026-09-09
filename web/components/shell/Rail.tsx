@@ -1,28 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { DIMENSION_COUNT_KEYS, DIMENSION_LABELS } from "@/lib/dimensions";
 import type { RegisterSubstrate } from "@/lib/substrate-types";
 import type { ViewKey } from "@/lib/shell/route";
 
-// Identity and wayfinding only: wordmark, scope line, dimension switcher,
-// chapters row, drift summary. Groups live in the chapters index now.
+// Identity and corpus navigation: wordmark, one row per mounted (corpus,
+// register), the Chapters row, drift summary. The far-left pane navigates
+// corpora entirely; dimension rows are never displayed — dimensions are
+// reached through keys 1-3, ⌘K, and cross-references.
 
 export interface RailRow {
   id: string;
-  kind: "view" | "drift";
-  view?: ViewKey;
+  kind: "register" | "chapters" | "drift";
+  href?: string; // register rows: the register root (lands on chapters)
 }
 
 // The focusable rows in render order — the Shell's rail cursor walks this
 // same list, so keep it in sync with the JSX below.
 export function railRows(substrate: RegisterSubstrate): RailRow[] {
-  const rows: RailRow[] = substrate.register.modes.map((m) => ({
-    id: m,
-    kind: "view",
-    view: m,
+  const rows: RailRow[] = substrate.registers.map((r) => ({
+    id: `reg:${r.key}`,
+    kind: "register",
+    href: r.href,
   }));
-  rows.push({ id: "chapters", kind: "view", view: "chapters" });
+  rows.push({ id: "chapters", kind: "chapters" });
   if (substrate.staleTotal > 0) rows.push({ id: "drift", kind: "drift" });
   return rows;
 }
@@ -40,49 +41,50 @@ export default function Rail({
   focused: boolean;
   onActivate: (row: RailRow) => void;
 }) {
-  const reg = substrate.register;
+  const active = substrate.register;
   const rows = railRows(substrate);
   const cursorId = focused ? rows[cursor]?.id : undefined;
-
-  const viewRow = (row: RailRow, i: number) => {
-    const v = row.view!;
-    const label = v === "chapters" ? "Chapters" : DIMENSION_LABELS[v];
-    const count =
-      v === "chapters"
-        ? substrate.chapterOrder.length
-        : (reg.totals[DIMENSION_COUNT_KEYS[v]] ?? 0);
-    const key = v === "chapters" ? 4 : reg.modes.indexOf(v) + 1;
-    return (
-      <button
-        key={row.id}
-        type="button"
-        data-dim={v}
-        className={`rail-row dimension-row${view === v ? " active" : ""}${cursorId === row.id ? " cursor" : ""}`}
-        onClick={() => onActivate(row)}
-        tabIndex={-1}
-      >
-        <span className="rail-text">{label}</span>
-        <span className="count rail-text">{count}</span>
-        <span className="keycap">{key}</span>
-      </button>
-    );
-  };
 
   return (
     <aside className={`pane rail${focused ? " focused" : ""}`}>
       <Link href="/" className="wordmark">
         chiron
       </Link>
-      <div className="scope-line rail-text" title={reg.label ?? undefined}>
-        {reg.title} › <span className="register-name">{reg.register}</span>
-      </div>
-      <nav className="rail-rows" aria-label="Dimensions">
-        {rows.filter((r) => r.kind === "view").map(viewRow)}
-        {reg.recordedModes.map((m) => (
-          <div key={m} className="rail-row dimension-row recorded">
-            <span className="rail-text">{m}</span>
-          </div>
-        ))}
+      <nav className="rail-rows" aria-label="Corpora">
+        {substrate.registers.map((r) => {
+          const isActive = r.key === active.key;
+          const row: RailRow = { id: `reg:${r.key}`, kind: "register", href: r.href };
+          return (
+            <button
+              key={r.key}
+              type="button"
+              title={r.label ?? undefined}
+              className={`rail-row dimension-row${isActive ? " active" : ""}${cursorId === row.id ? " cursor" : ""}`}
+              onClick={() => onActivate(row)}
+              tabIndex={-1}
+            >
+              <span className="rail-text">{r.title}</span>
+              <span className="count rail-text register-name">
+                {r.register}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+      <nav className="rail-rows" aria-label="Chapters">
+        <button
+          type="button"
+          data-dim="chapters"
+          className={`rail-row dimension-row${view === "chapters" ? " active" : ""}${cursorId === "chapters" ? " cursor" : ""}`}
+          onClick={() => onActivate({ id: "chapters", kind: "chapters" })}
+          tabIndex={-1}
+        >
+          <span className="rail-text">Chapters</span>
+          <span className="count rail-text">
+            {substrate.chapterOrder.length}
+          </span>
+          <span className="keycap">4</span>
+        </button>
       </nav>
       <div className="rail-footer">
         {substrate.staleTotal > 0 ? (
@@ -92,9 +94,7 @@ export default function Rail({
             onClick={() => onActivate({ id: "drift", kind: "drift" })}
             tabIndex={-1}
           >
-            <span className="rail-text">
-              {substrate.staleTotal} stale
-            </span>
+            <span className="rail-text">{substrate.staleTotal} stale</span>
           </button>
         ) : (
           <div className="rail-row drift-summary zero">

@@ -2,7 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cache } from "react";
 import matter from "gray-matter";
-import { CORPORA_DIR, findCorpus, getManifest } from "./content";
+import {
+  CORPORA_DIR,
+  findCorpus,
+  getManifest,
+  type Manifest,
+  type ManifestCorpus,
+} from "./content";
 import {
   DIMENSIONS,
   DIMENSION_COUNT_KEYS,
@@ -303,6 +309,7 @@ async function buildSubstrate(
 
   return {
     register: registerVM,
+    registers: manifest.corpora.map((c) => scopeRegisterVM(manifest, c)),
     terms,
     termOrder,
     phrases,
@@ -316,46 +323,53 @@ async function buildSubstrate(
   };
 }
 
+function scopeRegisterVM(
+  manifest: Manifest,
+  corpus: ManifestCorpus,
+): ScopeRegisterVM {
+  const chapters = manifest.chapters.filter(
+    (c) => c.corpus === corpus.name && c.register === corpus.register,
+  );
+  let staleCount = 0;
+  for (const c of chapters) {
+    for (const s of Object.values(c.states)) if (s === "stale") staleCount++;
+  }
+  const states = DIMENSIONS.flatMap((d) => {
+    const entry = corpus.data[d];
+    return entry ? [entry.state] : [];
+  });
+  const worst: DimensionState = states.includes("stale")
+    ? "stale"
+    : states.includes("none")
+      ? "none"
+      : "ok";
+  return {
+    key: `${corpus.name}/${corpus.register}`,
+    corpus: corpus.name,
+    register: corpus.register,
+    title: corpus.title,
+    label: corpus.label,
+    sourceKind: corpus.source_kind,
+    checkout: corpus.checkout,
+    urls: corpus.urls,
+    recordedModes: corpus.recorded_modes,
+    href: `/${corpus.name}/${corpus.register}`,
+    totals: DIMENSIONS.filter((d) => d in corpus.data).map((d) => ({
+      dimension: d,
+      count: corpus.totals[DIMENSION_COUNT_KEYS[d]] ?? 0,
+      noun: DIMENSION_COUNT_KEYS[d],
+    })),
+    chapterCount: chapters.length,
+    staleCount,
+    worst,
+  };
+}
+
 export const getSubstrate = cache(buildSubstrate);
 
 export const getScopeData = cache(async (): Promise<ScopeData> => {
   const manifest = await getManifest();
-  const registers: ScopeRegisterVM[] = manifest.corpora.map((corpus) => {
-    const chapters = manifest.chapters.filter(
-      (c) => c.corpus === corpus.name && c.register === corpus.register,
-    );
-    let staleCount = 0;
-    for (const c of chapters) {
-      for (const s of Object.values(c.states)) if (s === "stale") staleCount++;
-    }
-    const states = DIMENSIONS.flatMap((d) => {
-      const entry = corpus.data[d];
-      return entry ? [entry.state] : [];
-    });
-    const worst: DimensionState = states.includes("stale")
-      ? "stale"
-      : states.includes("none")
-        ? "none"
-        : "ok";
-    return {
-      key: `${corpus.name}/${corpus.register}`,
-      corpus: corpus.name,
-      register: corpus.register,
-      title: corpus.title,
-      label: corpus.label,
-      sourceKind: corpus.source_kind,
-      checkout: corpus.checkout,
-      urls: corpus.urls,
-      href: `/${corpus.name}/${corpus.register}`,
-      totals: DIMENSIONS.filter((d) => d in corpus.data).map((d) => ({
-        dimension: d,
-        count: corpus.totals[DIMENSION_COUNT_KEYS[d]] ?? 0,
-        noun: DIMENSION_COUNT_KEYS[d],
-      })),
-      chapterCount: chapters.length,
-      staleCount,
-      worst,
-    };
-  });
-  return { registers };
+  return {
+    registers: manifest.corpora.map((c) => scopeRegisterVM(manifest, c)),
+  };
 });

@@ -86,8 +86,8 @@ export default function Shell({
   const base = `/${substrate.register.corpus}/${substrate.register.register}`;
 
   const location = useMemo(() => parseViewerPath(pathname), [pathname]);
-  const view: ViewKey =
-    viewOf(location) ?? substrate.register.modes[0] ?? "chapters";
+  // Chapters is the primary view — the register root lands there.
+  const view: ViewKey = viewOf(location) ?? "chapters";
   const selection = selectionKey(location);
   const entry = useMemo(
     () => entryAt(substrate, location),
@@ -389,8 +389,10 @@ export default function Shell({
 
   // ---- actions ----
   const activateRail = (row: RailRow) => {
-    if (row.kind === "view") {
-      navigateReset(viewHref(base, row.view!));
+    if (row.kind === "register") {
+      if (row.href) navigateReset(row.href);
+    } else if (row.kind === "chapters") {
+      navigateReset(viewHref(base, "chapters"));
     } else {
       setStaleOnly(true);
       if (view !== "chapters") staleIntent.current = true;

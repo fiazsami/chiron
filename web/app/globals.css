@@ -409,6 +409,10 @@ pre {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.rail .register-name {
+  font-family: var(--mono);
+  font-size: 12px;
+}
 .dimension-row .count {
   font-variant-numeric: tabular-nums;
   font-size: var(--text-sm);
@@ -784,14 +788,6 @@ pre {
 .relation-line .reference {
   font: 600 var(--text-base) / var(--lh-chrome) var(--serif);
 }
-.relation-line .gloss {
-  font: 400 14px / var(--lh-chrome) var(--sans);
-  color: var(--ink-2);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
 .neighborhood-group + .neighborhood-group {
   margin-top: 16px;
 }
@@ -896,13 +892,11 @@ pre {
   font: 500 var(--text-xs) / 1 var(--sans);
   color: var(--muted);
 }
+/* Never clamped: section lists carry identity only, so the peek is where
+ * a definition/intent/gloss must be fully readable. */
 .peek .peek-reading {
   font: 400 var(--text-md) / var(--lh-quote) var(--serif);
   color: var(--ink);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 .peek .evidence-quote {
   font-size: 14px;

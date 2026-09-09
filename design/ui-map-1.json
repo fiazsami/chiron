@@ -18,6 +18,7 @@
     "Evidence is ink, not color. Anchor quotes are the only verbatim content; they are set in the reading face on the reading surface with a neutral rule and a provenance line. Color is reserved for two meanings: pine = you can act on this; amber = something drifted.",
     "Keyboard focus is always visible and never ambiguous: exactly one pane owns focus (top-edge bar), exactly one row or reference is the cursor (ring), and selection (the open entry) is a background, so cursor and selection can differ.",
     "Every cross-reference is reachable in two keystrokes from anywhere in an entry (f + hint letters), so following a thought never requires a mouse or a long tab walk.",
+    "Sections show identity, not content. Cross-reference lists (defines, mentions, phrasings, relations, neighborhood) carry only headwords — the reading text (definition, intent, gloss) is seen by an intentional act: peek, which always shows it in full, or opening the entry. Like flashcards: the corpus is recalled, not re-read. The index's one-line of meaning is the deliberate exception — it is the choosing surface.",
     "Nothing renders below 4.5:1 text contrast in either theme; the pairs table is the allowed set, not a suggestion.",
     "No uppercase labels. Hierarchy comes from size, weight, and color step, not from transform; headwords keep the corpus's own casing (datamodel: 'the corpus's spelling wins')."
   ],
@@ -55,7 +56,8 @@
       "2": "Phrasebook",
       "3": "Concept relations",
       "4": "Chapters",
-      "0": "Scope (corpus/register)"
+      "0": "Scope (corpus/register)",
+      "note": "1-3 are keyboard-only: the rail displays no dimension rows (hidden by design — chapters are the primary navigation); dimensions are also reached via ⌘K and cross-references. 4 is the rail's only view row."
     },
     "entry": {
       "f": "hint mode: label every cross-reference and anchor with 1-2 letters; type the letters to follow (esc cancels)",
@@ -91,23 +93,22 @@
         "corpus.title with corpus.name (identifier) and corpus.source_kind",
         "register.name + register.label per register, totals per implemented dimension using dimension.countNoun",
         "register-level state (worst-of-chapters) as one drift dot",
-        "corpus.checkout and corpus.urls as provenance (previously typed, never rendered)"
+        "corpus.checkout and corpus.urls as provenance (previously typed, never rendered), with recorded modes listed when present"
       ],
-      "keyboard": "j/k rows, enter opens the register into the shell (the first keypress reveals the cursor ring — no ring on first paint); 0 returns here from anywhere",
-      "notes": "Replaces corpora-index and register-hub. The hub's mode badges move into the rail. Composition: page on --bg-index, one --paper card per register with a 1px --edge border and soft shadow — the cards are the only paper on the page."
+      "keyboard": "j/k rows, enter opens the register into the shell landing on chapters (the first keypress reveals the cursor ring — no ring on first paint); 0 returns here from anywhere",
+      "notes": "Replaces corpora-index and register-hub. Recorded-mode marks live here (the rail shows no mode rows). Composition: page on --bg-index, one --paper card per register with a 1px --edge border and soft shadow — the cards are the only paper on the page."
     },
     {
       "id": "rail",
       "kind": "persistent-pane",
       "displays": [
         "wordmark",
-        "scope line: corpus.title › register.name (register.label on hover/focus)",
-        "dimension switcher: one row per register.modes entry; implemented modes show dimension.label + total (countNoun) + key number; recorded modes show mode.slug with a dashed marker and no key",
+        "corpus navigation: one row per mounted (corpus, register) — corpus.title + register.name (register.label on hover), active register highlighted; enter/click enters that register, landing on its chapters. The far-left pane navigates corpora entirely",
         "Chapters row (key 4) with chapter count",
         "drift summary: count of stale (chapter, dimension) pairs; enter opens the chapters index filtered to stale"
       ],
-      "keyboard": "1-4 switch dimension from anywhere; the rail is also a focusable pane (j/k, enter)",
-      "notes": "Identity and wayfinding only. Groups are no longer in the rail — they are section headers inside the chapters index."
+      "keyboard": "4 opens chapters; 1-3 switch dimensions without rail rows; 0 opens scope; the rail is a focusable pane (j/k over register rows, chapters, drift; enter activates)",
+      "notes": "Identity and corpus wayfinding only. Dimension rows are never displayed — chapters stay the primary navigation and the linguistic dimensions are reached through keys, jump, and cross-references. Groups are section headers inside the chapters index. Recorded modes are marked on the scope card, not here."
     },
     {
       "id": "index",
@@ -132,8 +133,8 @@
         "term.aliases as a plain run-in list ('Also written: …')",
         "Defined in: chapter.title (cross-reference) via term.defined_in",
         "Evidence: anchors deduped into quote-groups (anchors merge across chapters, so entries can carry 10-24 anchors with repeated quote text): one quote block per distinct quote, every distinct (chapter, path) provenance line beneath it, first-seen order; the first 6 groups render, the rest behind an expandable 'N more quotes' row (per-entry, not persisted). Drift marks per provenance line when anchor.curated_against ≠ chapter.content_hash",
-        "Phrasings: phrase.phrase + phrase.intent for each phrase whose terms include this slug (cross-references)",
-        "Relations: outgoing and incoming relationEdge lists in two columns, edge type as the column key, gloss inline (cross-references to the other endpoint)",
+        "Phrasings: phrase.phrase cross-references only for each phrase whose terms include this slug — no intent run-in; peek or enter reveals it",
+        "Relations: outgoing and incoming relationEdge lists in two columns, edge type inline before the other-endpoint cross-reference — no gloss run-in; the edge entry and peek carry it",
         "Mentioned in: derived chapter list"
       ],
       "keyboard": "f hint mode; n/p cycle references; e cycles anchors; space peeks; enter follows; y copies term.term"
@@ -160,7 +161,7 @@
         "relationEdge.gloss as the reading block",
         "type meaning from the closed relationType enum ('feeds: output of one becomes input of the other')",
         "Evidence: anchors",
-        "Neighborhood: other edges sharing either endpoint, grouped under small type headings; rows never repeat the shared endpoint — a muted direction arrow (→ outgoing, ← incoming) + the other endpoint + gloss, the gloss carrying the detail"
+        "Neighborhood: other edges sharing either endpoint, grouped under small type headings; rows never repeat the shared endpoint — a muted direction arrow (→ outgoing, ← incoming) + the other endpoint cross-reference only; the gloss is seen by peeking or following"
       ],
       "keyboard": "as entry-term; [ ] step through edges of the same type"
     },
@@ -172,10 +173,10 @@
         "chapter.title as headword with group.label · chapter.number as a muted sans meta beside it; the entry-kind badge appears only for kind=code; chapter.description as standfirst (markdown-stripped)",
         "provenance block: chapter.unit_paths (primary_path first), chapter.source_url, chapter.content_hash",
         "state per implemented dimension, quiet when healthy: one compact line (ok dots + 'all ok') when nothing is stale or none; the full per-dimension rows, stale anchor counts, and repair commands appear only on drift",
-        "Defines: terms with definition first line",
-        "Mentions: terms anchored here but defined elsewhere",
-        "Phrasings grounded here",
-        "Relations anchored here (dependency: manifest must carry edges per chapter, not just a count)"
+        "Defines: term cross-references as a wrapped chip list (term + kind suffix) — no definitions; the learner peeks or opens a term to see it, like a flashcard",
+        "Mentions: terms anchored here but defined elsewhere, the same chip list",
+        "Phrasings grounded here (phrase cross-references only)",
+        "Relations anchored here: type + endpoint-pair cross-references, no gloss run-in (dependency: manifest must carry edges per chapter, not just a count)"
       ],
       "keyboard": "as entry-term; o opens the source",
       "dependency": "per-chapter edge list; anchor.path and curated_against exposed to the viewer",
@@ -185,10 +186,10 @@
       "id": "peek",
       "kind": "overlay",
       "displays": [
-        "compact preview of the cursor cross-reference: headword + kind, first 2 lines of definition/intent/gloss, first anchor quote, 'enter to open'"
+        "compact preview of the cursor cross-reference: headword + kind, the full definition/intent/gloss (never clamped — the peek must fully view the reading text, which is what lets section lists omit it), first anchor quote, 'enter to open'"
       ],
       "keyboard": "space opens, space/esc closes, enter promotes to a real follow",
-      "notes": "Anchored beside the reference; never covers the reading measure. Replaces the nested-modal dive for quick checks."
+      "notes": "Anchored beside the reference; never covers the reading measure. Replaces the nested-modal dive for quick checks — and carries the flashcard reveal: sections show identity, the peek shows content."
     },
     {
       "id": "jump",
@@ -224,17 +225,18 @@
     "description": "How the substrate is sliced across surfaces in this design",
     "slices": {
       "scope": "corpus + register identity, totals, provenance, worst-of state",
-      "rail": "register.modes → dimension rows with totals; chapter count; stale count",
-      "index": "identity + one line of meaning per entry (headword, kind/type, definition|intent|gloss first line, aliases); state dots on chapters",
-      "entry-*": "the full entry: every attribute the datamodel marks required, all anchors as deduped quote-groups (first 6 visible, rest expandable; e cycles visible groups), all inverse relationships (phrasings, edges, mentionedIn)",
-      "peek": "headword + kind + first two lines + first anchor",
+      "rail": "mounted registers (title + name) as corpus navigation; chapter count; stale count — no dimension rows",
+      "index": "identity + one line of meaning per entry (headword, kind/type, definition|intent|gloss first line, aliases); state dots on chapters — the choosing surface keeps its one-liner",
+      "entry-*": "the full entry: every attribute the datamodel marks required, all anchors as deduped quote-groups (first 6 visible, rest expandable; e cycles visible groups), all inverse relationships as identity-only cross-reference lists (phrasings, edges, mentionedIn — no definition/intent/gloss run-ins)",
+      "peek": "headword + kind + the full reading text + first anchor — the flashcard reveal",
       "jump": "identity + aliases as match keys",
       "drill": "one attribute pair per prompt, answer with one anchor"
     },
     "notSurfaced": {
       "register.notes": "authoring steering text; not learner-facing",
       "dimension.dataFilename / methodologyDoc": "tooling provenance; linked from help only",
-      "mode.status for implemented modes": "implied by having a key number; only recorded modes are marked",
+      "mode.status for implemented modes": "implied by being navigable; recorded modes are marked on the scope card (the rail shows no mode rows at all)",
+      "term.definition / phrase.intent / relationEdge.gloss inside cross-reference lists": "deliberately omitted — the peek shows the full text; seeing content is an intentional act (flashcards)",
       "corpus.origin": "operational; scope shows checkout and urls instead",
       "cross-register views": "no representation in the data model (datamodel modelingNotes)"
     }
@@ -246,7 +248,7 @@
     },
     {
       "name": "Rail",
-      "renders": "wordmark, scope line, dimension switcher, chapters row, drift summary"
+      "renders": "wordmark, register rows (corpus navigation), chapters row, drift summary — no dimension rows"
     },
     {
       "name": "Index",
@@ -287,23 +289,9 @@
       }
     },
     {
-      "id": "scope-line",
+      "id": "rail-row",
       "area": "rail",
-      "binds": "corpus.title › register.name",
-      "contentKind": "headword+identifier",
-      "spec": {
-        "face": "sans",
-        "size": 13,
-        "weight": 500,
-        "color": "--ink-2",
-        "registerName": "mono 12 --muted"
-      },
-      "keyboard": "0 opens scope"
-    },
-    {
-      "id": "dimension-row",
-      "area": "rail",
-      "binds": "dimension.label + total (dimension.countNoun) | mode.slug when recorded",
+      "binds": "corpus.title + register.name per mounted register | 'Chapters' + chapter count. Dimension rows are never rendered — this row style serves corpus navigation and the Chapters row only",
       "contentKind": "label+count",
       "spec": {
         "face": "sans",
@@ -311,13 +299,13 @@
         "weight": 500,
         "lineHeight": 1.4,
         "color": "--ink",
-        "active": "600 + --sel bg + 3px left --dim-hue",
+        "registerName": "mono 12 --muted, right-aligned",
+        "active": "600 + --sel bg + 3px left --dim-hue (register rows fall back to --pine)",
         "count": "13 tabular --muted",
-        "keycap": "11 mono in --edge box, right-aligned",
-        "recorded": "--muted, dashed left rule, no keycap",
-        "overflow": "label never wraps the 32px row: nowrap + ellipsis ('Concept relations' is the widest)"
+        "keycap": "11 mono in --edge box, right-aligned — Chapters row only (key 4)",
+        "overflow": "label never wraps the 32px row: nowrap + ellipsis"
       },
-      "keyboard": "1-4"
+      "keyboard": "j/k + enter; 4 activates Chapters directly"
     },
     {
       "id": "drift-summary",
@@ -623,24 +611,22 @@
     {
       "id": "phrasing-row",
       "area": "entry",
-      "binds": "phrase.phrase + phrase.intent",
-      "contentKind": "headword+prose",
+      "binds": "phrase.phrase (cross-reference only — the intent lives in the peek and the phrase entry)",
+      "contentKind": "headword",
       "spec": {
         "headword": "serif 16 600 cross-reference",
-        "intent": "sans 14 --ink-2 on the same line after 4px",
         "rowGap": 8
       }
     },
     {
       "id": "relation-column",
       "area": "entry",
-      "binds": "relationEdge grouped as outgoing / incoming",
-      "contentKind": "label+headword+prose",
+      "binds": "relationEdge grouped as outgoing / incoming — identity only, no gloss run-in (the edge entry and peek carry it)",
+      "contentKind": "label+headword",
       "spec": {
         "columnHead": "sans 13 600 --ink-2 ('this → others', 'others → this')",
         "type": "sans 13 500 --blue, inline before the endpoint — no fixed gutter, every line shares the measure's left edge",
-        "endpoint": "serif 16 600 cross-reference",
-        "gloss": "sans 14 --ink-2, clamp 2, on its own line under the endpoint"
+        "endpoint": "serif 16 600 cross-reference"
       }
     },
     {
@@ -663,7 +649,7 @@
     {
       "id": "term-chip",
       "area": "entry",
-      "binds": "phrase.terms → term.term + term.kind",
+      "binds": "phrase.terms → term.term + term.kind | chapter.defines / chapter.mentions → the same chip list (identity only)",
       "contentKind": "headword+label",
       "spec": {
         "face": "serif",
@@ -733,11 +719,11 @@
     {
       "id": "peek-body",
       "area": "peek",
-      "binds": "headword + kind + reading first 2 lines + first anchor",
+      "binds": "headword + kind + full reading text + first anchor",
       "contentKind": "headword+label+prose+quote",
       "spec": {
         "headword": "serif 19 600",
-        "reading": "serif 15 1.5 clamp 2",
+        "reading": "serif 15 1.5, full text — never clamped (field caps: definition 400, intent 160, gloss 200 chars, all fit the card)",
         "quote": "serif 14 1.45 with 2px rule",
         "footer": "11 --muted 'enter opens'",
         "width": "min(420px, 40vw)"
@@ -988,7 +974,7 @@
       "concept-relations": "--blue",
       "chapters": "--ink-2 (not a dimension)",
       "consumers": [
-        "rail dimension row left bar when active",
+        "rail Chapters row left bar when active (dimension rows are hidden; register rows use --pine)",
         "index section marker",
         "entry kind badge",
         "jump glyph"

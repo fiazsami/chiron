@@ -107,6 +107,7 @@ export interface SearchDoc {
 
 export interface RegisterSubstrate {
   register: RegisterVM;
+  registers: ScopeRegisterVM[]; // every mounted (corpus, register) — the rail navigates corpora directly
   terms: Record<string, TermVM>;
   termOrder: string[]; // alphabetical by term
   phrases: Record<string, PhraseVM>;
@@ -130,7 +131,8 @@ export interface ScopeRegisterVM {
   sourceKind: "markdown" | "code" | "custom";
   checkout: string;
   urls: Record<string, string>;
-  href: string; // "/<corpus>/<register>" (redirects into the first dimension)
+  recordedModes: string[];
+  href: string; // "/<corpus>/<register>" (redirects into chapters)
   totals: {
     dimension: Dimension;
     count: number;
