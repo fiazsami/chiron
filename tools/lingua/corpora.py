@@ -155,7 +155,7 @@ def discover(corpora_dir: Path) -> tuple[list[CorpusConfig], list[str]]:
         if not (corpus_dir / "corpus.yaml").exists():
             warnings.append(
                 f"corpora/{name}/ has no corpus.yaml — skipped "
-                f"(unfinished mount? run /mount to complete it)"
+                f"(unfinished mount? run /ch:mount to complete it)"
             )
             continue
         if (corpus_dir / "tools" / "adapter.py").exists() or any(
@@ -169,14 +169,14 @@ def discover(corpora_dir: Path) -> tuple[list[CorpusConfig], list[str]]:
         register_dirs = _register_dirs(corpus_dir)
         if not register_dirs:
             warnings.append(
-                f"corpora/{name}/ has no registers — run /mount to create v1"
+                f"corpora/{name}/ has no registers — run /ch:mount to create v1"
             )
             continue
         for register_dir in register_dirs:
             if not (register_dir / "translation.yaml").exists():
                 warnings.append(
                     f"corpora/{name}/{register_dir.name}/ has no translation.yaml — "
-                    f"skipped (unfinished mount? run /mount to complete it)"
+                    f"skipped (unfinished mount? run /ch:mount to complete it)"
                 )
                 continue
             cfg, w = load_config(corpus_dir, register_dir)
@@ -189,7 +189,7 @@ def load_adapter(cfg: CorpusConfig) -> Callable[[CorpusConfig, Path], Corpus]:
     """Import corpora/<name>/<vN>/tools/adapter.py and return its scan()."""
     where = f"corpora/{cfg.name}/{cfg.register}/tools/adapter.py"
     if not cfg.adapter_path.exists():
-        raise CorpusError(f"{where} not found — run /mount to build the register's adapter")
+        raise CorpusError(f"{where} not found — run /ch:mount to build the register's adapter")
     spec = importlib.util.spec_from_file_location(
         f"chiron_corpus_{cfg.name.replace('-', '_')}_{cfg.register}_adapter",
         cfg.adapter_path,

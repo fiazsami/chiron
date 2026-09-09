@@ -24,6 +24,7 @@ the chapter for a human gate.
 """
 
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -36,6 +37,7 @@ from .extract import (
 )
 from .model import Chapter
 from .status import RegisterBundle
+from .where import cmd, state_line
 
 DEFAULT_MODEL = "claude-sonnet-5"
 DEFAULT_EFFORT = "medium"
@@ -338,9 +340,15 @@ def submit(bundle: RegisterBundle, chapters: list[Chapter], mode: str | None,
     wd = work_dir(bundle)
     (wd / "results").mkdir(parents=True, exist_ok=True)
     plan = {
-        _key(c): {"id": c.id, "modes": modes_needed(bundle, c, mode)}
+        _key(c): {"id": c.id, "modes": modes_needed(bundle, c, mode),
+                  "attempts": 0, "parked": None}
         for c in chapters
     }
+    # A new run owns the slate. Without this a chapter whose collect fails
+    # silently re-applies a stale result from an earlier run.
+    for key in plan:
+        (wd / "results" / f"{key}.json").unlink(missing_ok=True)
+    (wd / "failures.json").unlink(missing_ok=True)
 
     if sync:
         for chapter in chapters:
@@ -357,7 +365,7 @@ def submit(bundle: RegisterBundle, chapters: list[Chapter], mode: str | None,
             {"batch_id": None, "model": model, "effort": effort,
              "chapters": plan, "created_at": time.time()}, indent=2))
         print(f"{len(chapters)} chapter(s) authored synchronously — "
-              f"next: author --apply")
+              f"next: {cmd('author --apply')}")
         return 0
 
     from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
@@ -378,7 +386,7 @@ def submit(bundle: RegisterBundle, chapters: list[Chapter], mode: str | None,
          "chapters": plan, "created_at": time.time()}, indent=2))
     print(f"submitted batch {batch.id}: {len(chapters)} chapter(s), "
           f"model {model}, effort {effort} (Batch API — 50% token pricing)")
-    print("next: uv run python -m tools.lingua author --collect [--wait]")
+    print(f"next: {cmd('author --collect --wait')}")
     return 0
 
 
@@ -392,8 +400,8 @@ def collect(bundle: RegisterBundle, wait: bool) -> int:
     if not run:
         raise AuthorError(f"no authoring run found under {wd}")
     if run["batch_id"] is None:
-        print("run was synchronous — results already collected; "
-              "next: author --apply")
+        print(f"run was synchronous — results already collected; "
+              f"next: {cmd('author --apply')}")
         return 0
 
     while True:
@@ -441,7 +449,12 @@ def collect(bundle: RegisterBundle, wait: bool) -> int:
         print(f"  FAILED {chapter_id}: {why}")
     print(f"usage: {usage_in} in ({cache_read} cached) / {usage_out} out "
           f"— billed at 50% batch pricing")
-    print("next: uv run python -m tools.lingua author --apply")
+    if failed:
+        ids = " ".join(chapter_id for chapter_id, _ in failed)
+        print(f"next: {cmd('author --apply')}, then re-submit the failures: "
+              f"{cmd(f'author {ids} --sync')}")
+    else:
+        print(f"next: {cmd('author --apply')}")
     return 1 if failed else 0
 
 
@@ -520,6 +533,72 @@ def demote_conflicts(payload: dict, chapter: Chapter, lexicon_data: dict,
     return {"terms": terms}, demoted
 
 
+COLLECTION_KEY = {"lexicon": "terms", "phrasebook": "phrases",
+                  "concept-relations": "edges"}
+
+
+def _entry_block(entry: dict, indent: str) -> list[str]:
+    """One lexicon entry, shown the way a human needs to weigh it: the term,
+    its kind, its definition, and the anchor that grounds it."""
+    out = [f"{indent}{entry.get('term', '?')}  ({entry.get('kind', '?')})",
+           f"{indent}  {entry.get('definition', '')}"]
+    anchors = entry.get("anchors") or []
+    if anchors:
+        quote = str(anchors[0].get("quote", "")).strip()
+        out.append(f'{indent}  evidence {anchors[0].get("chapter", "?")} '
+                   f'"{quote}"')
+    return out
+
+
+def _print_gate(bundle: RegisterBundle, wd: Path, gated: list) -> None:
+    """The redefinition gate. A gate that cannot show its material is a bug,
+    not a gate — so both definitions are printed with their anchors, and both
+    branches are runnable commands. Nothing is hand-edited."""
+    gate_dir = wd / "gated"
+    gate_dir.mkdir(exist_ok=True)
+    print(f"\n{len(gated)} chapter(s) HELD for the redefinition gate — their "
+          f"lexicon, phrasebook and concept-relations are all unapplied until "
+          f"you run the commands below.")
+    for chapter, result in gated:
+        proposed = {
+            t.get("slug"): t
+            for t in (result.get("lexicon") or {}).get("terms", [])
+        }
+        for redef in result["redefinitions"]:
+            slug = redef["slug"]
+            current = bundle.data["lexicon"].get(slug, {})
+            owner = current.get("defined_in") or "nothing yet"
+            print(f"\n  {chapter.id}: {slug}")
+            print(f"    reason: {redef.get('reason', '')}")
+            print(f"    current definition (owned by {owner}):")
+            for line in _entry_block(current, "      "):
+                print(line)
+            print(f"    proposed definition (from {chapter.local_id}):")
+            for line in _entry_block(proposed.get(slug, {}), "      "):
+                print(line)
+        # Both branches are payload files the CLI writes; the reject branch is
+        # demote_conflicts applied mechanically, so nobody edits JSON by hand.
+        lex = result.get("lexicon")
+        if lex and lex.get("terms"):
+            keep = gate_dir / f"{_key(chapter)}-lexicon.json"
+            keep.write_text(json.dumps(lex, indent=2))
+            demoted_payload, _ = demote_conflicts(
+                dict(lex), chapter, bundle.data["lexicon"], set())
+            drop = gate_dir / f"{_key(chapter)}-lexicon.demoted.json"
+            drop.write_text(json.dumps(demoted_payload, indent=2))
+            print(f"    accept:  "
+                  f"{cmd(f'set lexicon {chapter.id} --from {keep} --redefine')}")
+            print(f"    reject:  "
+                  f"{cmd(f'set lexicon {chapter.id} --from {drop}')}")
+        for dim in dimensions.REGISTRY:
+            if dim == "lexicon" or not result.get(dim):
+                continue
+            path = gate_dir / f"{_key(chapter)}-{dim}.json"
+            path.write_text(json.dumps(result[dim], indent=2))
+            print(f"    then:    "
+                  f"{cmd(f'set {dim} {chapter.id} --from {path}')}")
+
+
 def apply_results(bundle: RegisterBundle, check: bool) -> int:
     wd = work_dir(bundle)
     run = _load_json(wd / "run.json", None)
@@ -556,9 +635,7 @@ def apply_results(bundle: RegisterBundle, check: bool) -> int:
                 continue
             # The API schema can't express minItems: an author with nothing
             # to contribute returns an empty collection — a skip, not an error.
-            collection = {"lexicon": "terms", "phrasebook": "phrases",
-                          "concept-relations": "edges"}[dim]
-            if not payload.get(collection):
+            if not payload.get(COLLECTION_KEY[dim]):
                 continue
             payload = normalize_anchors(payload, chapter, bundle.corpus)
             if dim == "lexicon":
@@ -582,42 +659,45 @@ def apply_results(bundle: RegisterBundle, check: bool) -> int:
             applied.setdefault(chapter.local_id, []).append(dim)
 
     verb = "would apply" if check else "applied"
+    # Voice law 2: a line addressed to a human carries the full chapter id.
+    full = {c.local_id: c.id for c in bundle.corpus.chapters}
     for local, dims in applied.items():
         note = ""
         if local in demoted_report:
             note = f"  (auto-demoted: {', '.join(demoted_report[local])})"
-        print(f"{verb} {local}: {', '.join(dims)}{note}")
+        print(f"{verb} {full.get(local, local)}: {', '.join(dims)}{note}")
     for local, dims in failures.items():
         for dim, problems in dims.items():
-            print(f"REJECTED {local} {dim}:")
+            print(f"REJECTED {full.get(local, local)} {dim}:")
             for problem in problems:
                 print(f"  - {problem}")
+    # A lexicon rejection cancels the chapter's other dimensions. That used to
+    # happen in silence, which is exactly what made triage guesswork.
+    for chapter, result in ready:
+        if chapter.local_id not in skip:
+            continue
+        cancelled = [
+            d for d in dimensions.REGISTRY
+            if d != "lexicon" and result.get(d)
+            and result[d].get(COLLECTION_KEY[d])
+        ]
+        if cancelled:
+            print(f"skipped {chapter.id} {', '.join(cancelled)} — lexicon "
+                  f"rejected (they reference its slugs)")
     if not check:
         if failures:
             (wd / "failures.json").write_text(json.dumps(failures, indent=2))
-            print("rejected payloads recorded — fix via: author --retry <id>")
+            print(f"rejected payloads recorded — triage first: "
+                  f"/ch:verify {bundle.corpus.name}/{bundle.corpus.register} "
+                  f"(or {cmd('author --status')})")
         else:
             (wd / "failures.json").unlink(missing_ok=True)
+    # Voice law 3: exit 0 states what is now true; silence is never success.
+    if not failures and not gated:
+        print(f"{verb} {len(applied)} chapter(s); nothing rejected or held")
 
     if gated:
-        gate_dir = wd / "gated"
-        gate_dir.mkdir(exist_ok=True)
-        print("\nHELD for the redefinition gate (review, then run the "
-              "printed commands):")
-        for chapter, result in gated:
-            for redef in result["redefinitions"]:
-                current = bundle.data["lexicon"].get(redef["slug"], {})
-                print(f"  {chapter.local_id}: {redef['slug']} "
-                      f"(now defined by {current.get('defined_in', '?')}) — "
-                      f"{redef['reason']}")
-            for dim in dimensions.REGISTRY:
-                if not result.get(dim):
-                    continue
-                path = gate_dir / f"{_key(chapter)}-{dim}.json"
-                path.write_text(json.dumps(result[dim], indent=2))
-                flag = " --redefine" if dim == "lexicon" else ""
-                print(f"    uv run python -m tools.lingua set {dim} "
-                      f"{chapter.id} --from {path}{flag}")
+        _print_gate(bundle, wd, gated)
     return 1 if failures else 0
 
 
@@ -639,6 +719,7 @@ def retry(bundle: RegisterBundle, chapters: list[Chapter], model: str,
         info = run["chapters"].get(key)
         if info is None:
             raise AuthorError(f"{chapter.id} is not part of the current run")
+        info["attempts"] = int(info.get("attempts") or 0) + 1
         prior = _load_json(wd / "results" / f"{key}.json", {})
         problems = failures.get(chapter.local_id, {})
         feedback_lines = []
@@ -652,5 +733,148 @@ def retry(bundle: RegisterBundle, chapters: list[Chapter], model: str,
         message = client.messages.create(**params)
         result = _parse_result_text(message)
         (wd / "results" / f"{key}.json").write_text(json.dumps(result, indent=2))
-        print(f"{chapter.id}: re-authored — next: author --apply")
+        (wd / "run.json").write_text(json.dumps(run, indent=2))
+        print(f"{chapter.id}: re-authored (attempt {info['attempts']}) — "
+              f"next: {cmd('author --apply')}")
     return 0
+
+
+# --- run status ---------------------------------------------------------------
+
+_MENTION_BOUNCE = re.compile(r"'([^']+)' is not in the lexicon")
+
+
+def _definers(wd: Path, planned: dict) -> dict[str, str]:
+    """slug -> the run-local key of the chapter whose payload defines it."""
+    out: dict[str, str] = {}
+    for key in planned:
+        result = _load_json(wd / "results" / f"{key}.json", None) or {}
+        for term in (result.get("lexicon") or {}).get("terms", []):
+            if term.get("define") and term.get("slug"):
+                out.setdefault(term["slug"], key)
+    return out
+
+
+def run_status(bundle: RegisterBundle) -> int:
+    """What the current authoring run actually did, decided from files rather
+    than inferred by a model. /ch:verify reads this and judges only what is
+    left genuinely ambiguous."""
+    wd = work_dir(bundle)
+    run = _load_json(wd / "run.json", None)
+    if not run:
+        raise AuthorError(
+            f"no authoring run found under {wd} — start one with "
+            f"{cmd(f'author {bundle.corpus.name}/{bundle.corpus.register}')}")
+    planned: dict = run["chapters"]
+    results_dir = wd / "results"
+    failures = _load_json(wd / "failures.json", {})
+    gate_dir = wd / "gated"
+    gated_keys = {
+        p.name.split("-lexicon")[0].split("-phrasebook")[0]
+        .split("-concept-relations")[0]
+        for p in (gate_dir.glob("*.json") if gate_dir.is_dir() else [])
+    }
+    by_local = {c.local_id: c for c in bundle.corpus.chapters}
+    key_local = {k: info["id"].split("/", 2)[2] for k, info in planned.items()}
+
+    print(f"run       {bundle.corpus.name}/{bundle.corpus.register} · "
+          f"{'batch ' + run['batch_id'] if run.get('batch_id') else 'sync'} · "
+          f"model {run.get('model')} · effort {run.get('effort')}")
+    print(f"planned   {len(planned)} chapter(s)\n")
+
+    rows, retry_ids, parked = [], [], []
+    for key, info in planned.items():
+        local = key_local[key]
+        chapter = by_local.get(local)
+        has_result = (results_dir / f"{key}.json").exists()
+        attempts = int(info.get("attempts") or 0)
+        if info.get("parked"):
+            state = f"parked ({info['parked']})"
+            parked.append(info["id"])
+        elif not has_result:
+            state = "no result — collect-level failure"
+        elif local in failures:
+            state = "REJECTED " + ", ".join(failures[local])
+        elif key in gated_keys:
+            state = "HELD (redefinition gate)"
+        elif chapter is not None and all(
+                s == "ok" for s in bundle.chapter_states(chapter).values()):
+            state = "applied"
+        else:
+            state = "author found nothing to contribute"
+        rows.append((info["id"], attempts, state))
+    width = max((len(r[0]) for r in rows), default=10)
+    for chapter_id, attempts, state in rows:
+        print(f"  {chapter_id:<{width}}  attempts {attempts}  {state}")
+
+    # --- health checks --------------------------------------------------------
+    notes: list[str] = []
+    missing = [i for i, _, s in rows if s.startswith("no result")]
+    if missing:
+        notes.append(
+            f"{len(missing)} chapter(s) never produced a result — the fix is a "
+            f"fresh run for those ids ({cmd('author <ids> --sync')}), not a retry")
+    newest = max((p.stat().st_mtime for p in results_dir.glob("*.json")),
+                 default=0.0)
+    fail_path = wd / "failures.json"
+    if failures and fail_path.exists() and fail_path.stat().st_mtime < newest:
+        notes.append("failures.json is older than the newest result — it "
+                     "describes a previous round; re-apply before triaging")
+    orphans = [p.stem for p in results_dir.glob("*.json") if p.stem not in planned]
+    if orphans:
+        notes.append(
+            f"{len(orphans)} result file(s) are not part of this run "
+            f"({', '.join(sorted(orphans)[:5])}…) — leftovers from an earlier run")
+    for note in notes:
+        print(f"\n  note: {note}")
+
+    # --- cascade ordering -----------------------------------------------------
+    definers = _definers(wd, planned)
+    cascades: list[str] = []
+    for local, dims in failures.items():
+        for dim, problems in dims.items():
+            for problem in problems:
+                match = _MENTION_BOUNCE.search(problem)
+                if not match:
+                    continue
+                definer_key = definers.get(match.group(1))
+                if definer_key is None:
+                    continue
+                definer_local = key_local.get(definer_key)
+                if definer_local in failures or definer_key in gated_keys:
+                    cascades.append(
+                        f"{planned[definer_key]['id']} defines "
+                        f"'{match.group(1)}' and bounced too — "
+                        f"{by_local[local].id if local in by_local else local} "
+                        f"is a cascade, not a genuine error")
+                    if definer_key not in retry_ids:
+                        retry_ids.append(definer_key)
+    for local in failures:
+        key = next((k for k, v in key_local.items() if v == local), None)
+        if key and key not in retry_ids:
+            retry_ids.append(key)
+    if cascades:
+        print("\n  cascades (retry the definer in the same set — apply "
+              "processes register order, so the definition lands first):")
+        for line in dict.fromkeys(cascades):
+            print(f"    {line}")
+
+    print()
+    if retry_ids:
+        capped = [k for k in retry_ids if int(planned[k].get("attempts") or 0) >= 2]
+        live = [k for k in retry_ids if k not in capped]
+        if live:
+            ids = " ".join(planned[k]["id"] for k in live)
+            print(f"next: {cmd(f'author --retry {ids}')}, then "
+                  f"{cmd('author --apply')}")
+        for key in capped:
+            print(f"needs human review: {planned[key]['id']} "
+                  f"(at the 2-retry cap)")
+    elif gated_keys:
+        print(f"next: {cmd('author --apply')} to reprint the redefinition "
+              f"gate, then run the accept/reject command it prints")
+    else:
+        print(f"next: {state_line(bundle).split('next: ', 1)[-1]}")
+    for chapter_id in parked:
+        print(f"parked: {chapter_id}")
+    return 1 if failures else 0

@@ -172,7 +172,7 @@ def test_apply_rejects_ungrounded_and_records_failure(markdown_corpus, capsys):
     code = authormod.apply_results(bundle, check=False)
     out = capsys.readouterr().out
     assert code == 1
-    assert "REJECTED foundations/01 lexicon" in out
+    assert "REJECTED demo-course/v1/foundations/01 lexicon" in out
     failures = json.loads(
         (authormod.work_dir(bundle) / "failures.json").read_text())
     assert "foundations/01" in failures

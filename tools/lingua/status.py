@@ -25,8 +25,8 @@ COUNT_KEYS = {
 }
 
 MOUNT_HINT = (
-    "no corpora mounted under corpora/ — run /mount <repo-url> in Claude Code "
-    "to mount one"
+    "no corpora mounted under corpora/ — run /ch:mount <repo-url> in Claude "
+    "Code to mount one"
 )
 
 
@@ -188,12 +188,15 @@ def status_json(bundles: list[RegisterBundle]) -> dict:
     }
 
 
-def print_status(bundles: list[RegisterBundle], as_json: bool) -> int:
+def print_status(bundles: list[RegisterBundle], as_json: bool,
+                 warnings: list[str] | None = None) -> int:
+    from .where import STATE_LEGEND, lines as where_lines
     if as_json:
         print(json.dumps(status_json(bundles), indent=2))
         return 0
     if not bundles:
-        print(MOUNT_HINT)
+        for line in where_lines(bundles, warnings):
+            print(line)
         return 0
     chapters = [(b, c) for b in bundles for c in b.corpus.chapters]
     id_w = max(32, *(len(c.id) + 1 for _, c in chapters)) if chapters else 32
@@ -212,4 +215,12 @@ def print_status(bundles: list[RegisterBundle], as_json: bool) -> int:
         if slug in combined:
             parts.append(f"{slug} {state_summary(combined[slug]) or '-'}")
     print(f"\n{len(chapters)} chapters | " + " | ".join(parts))
+    # Voice law 4: the tokens in the table above are defined, right here.
+    print(f"legend: {STATE_LEGEND}")
+    # status used to be the one command that hid what `check` reported —
+    # a half-finished mount was invisible from the orientation command.
+    for warning in warnings or []:
+        print(f"warning: {warning}")
+    for line in where_lines(bundles, warnings):
+        print(line)
     return 0

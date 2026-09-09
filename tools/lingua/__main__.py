@@ -1,20 +1,35 @@
 """Linguistic structure extraction for the mounted corpora.
 
-    uv run python -m tools.lingua                        # build: pages + manifest
-    uv run python -m tools.lingua build --only mcp/02    # subset render while iterating
-    uv run python -m tools.lingua check                  # drift report, writes nothing
-    uv run python -m tools.lingua check --strict         # exit 1 unless everything ok
-    uv run python -m tools.lingua status [--json]        # per-chapter, per-dimension states
-    uv run python -m tools.lingua extract mcp/02         # source bundle for authoring agents
-    uv run python -m tools.lingua extract mcp/02 --mode lexicon
-    uv run python -m tools.lingua set lexicon mcp/02 --from payload.json [--redefine]
-    uv run python -m tools.lingua accept-drift mcp/02 [--mode lexicon]   (or: all)
+    ./ch                              # build: pages + manifest
+    ./ch where                        # one line per register: state + next action
+    ./ch resolve <target>             # what a target expression expands to
+    ./ch check [--strict]             # drift report, writes nothing
+    ./ch status [--json]              # per-chapter, per-dimension states
+    ./ch extract <id> [--dimension L] # source bundle for authoring agents
+    ./ch set <dim> <id> --from p.json [--redefine]
+    ./ch author <target> [--sync] | --collect [--wait] | --apply | --status | --retry <id>
+    ./ch ask <register> ["<text>"]    # what is this called here
+    ./ch grade <register> --text "…"  # does this instruction land in the corpus's terms
+    ./ch accept-drift <id> [--dimension L]   (or: all)
 
-Chapter ids are "<corpus>/<vN>/<group>/<NN>" (fewshot-works-academy/v1/foundations/02).
-Two shorthands resolve when unambiguous: "<corpus>/<group>/<NN>" (corpus has
-one register) and the bare "<group>/<NN>" (one mounted register matches).
-Corpora are mounted via the /mount Claude Code skill; re-running it on a
-mounted corpus creates the next register (v2, v3, ...).
+`./ch` is this module, scoped: `./ch status` == `uv run python -m tools.lingua
+status`. Both forms work and both must be run from the repo root.
+
+Target grammar: see `tools/lingua/resolve.py`, and `./ch resolve` to check it.
+
+The voice law for everything printed here — the skills in `plugins/ch/skills/`
+depend on it:
+  1. Every next-step hint is copy-pasteable, in full. Build them with cmd().
+  2. Human-facing lines print the full chapter id. Register-local ids and
+     `--`-joined work-dir keys are file and payload forms, never audience forms.
+  3. Exit 0 always states what is now true; silence is never success.
+  4. Every state token printed has a legend (where.STATE_LEGEND).
+  5. One next action, and it agrees with the skills: name a CLI command while
+     a run is open for that register, name the /ch: verb when one is not.
+  6. Case carries severity: REJECTED/FAILED/HELD block progress; lowercase
+     words are outcomes and prefixes.
+  7. Problems that caused a non-zero exit go to stderr; problems recorded for
+     later go to stdout.
 """
 
 import argparse
@@ -32,9 +47,14 @@ from .extract import build_extract
 from .manifest import write_manifest_and_clean
 from .model import Chapter, ScanError
 from .render import render_all
+from .resolve import (
+    GRAMMAR, checked_resolver, one_register, print_resolution, resolve_targets,
+)
 from .status import (
-    MOUNT_HINT, RegisterBundle, all_ok, build_bundle, print_status,
-    resolve_factory, state_summary,
+    RegisterBundle, all_ok, build_bundle, print_status, state_summary,
+)
+from .where import (
+    MOUNT_HINT, STATE_LEGEND, cmd, print_where, state_line,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -84,11 +104,37 @@ def _parser() -> argparse.ArgumentParser:
     status.add_argument("--json", action="store_true",
                         help="emit machine-readable JSON")
 
+    resolvecmd = sub.add_parser(
+        "resolve", help="show what a target expression expands to")
+    resolvecmd.add_argument("targets", nargs="*", metavar="TARGET")
+
+    sub.add_parser(
+        "where", help="one line per register: state and the next action")
+
     extract = sub.add_parser("extract",
                              help="print a chapter's source bundle for authoring agents")
     extract.add_argument("id", metavar="ID")
-    extract.add_argument("--mode", metavar="SLUG",
+    extract.add_argument("--dimension", "--mode", dest="mode", metavar="SLUG",
                          help="trim the bundle to one dimension")
+
+    askcmd = sub.add_parser(
+        "ask", help="what is this called here (read-only study)")
+    askcmd.add_argument("register", metavar="REGISTER")
+    askcmd.add_argument("text", nargs="?", metavar="TEXT")
+    askcmd.add_argument("--n", type=int, default=6, help="how many entries")
+    askcmd.add_argument("--relate", nargs=2, metavar=("A", "B"),
+                        help="how two term slugs relate")
+    askcmd.add_argument("--json", action="store_true")
+
+    gradecmd = sub.add_parser(
+        "grade", help="does this instruction land in the corpus's terms")
+    gradecmd.add_argument("register", metavar="REGISTER")
+    gradecmd.add_argument("--text", required=True, metavar="TEXT")
+    gradecmd.add_argument("--against", metavar="ENTRY",
+                          help="drill against one entry id (term:<slug>)")
+    gradecmd.add_argument("--json", action="store_true")
+    gradecmd.add_argument("--no-log", dest="log", action="store_false",
+                          help="do not append to work/calibration.jsonl")
 
     setcmd = sub.add_parser("set",
                             help="validate a dimension payload and store it for a chapter")
@@ -106,7 +152,7 @@ def _parser() -> argparse.ArgumentParser:
     author.add_argument("targets", nargs="*", metavar="TARGET",
                         help="a register (<corpus>/<vN>), group, or chapter "
                              "ids — one register per run")
-    author.add_argument("--mode", metavar="SLUG",
+    author.add_argument("--dimension", "--mode", dest="mode", metavar="SLUG",
                         help="author a single dimension instead of every "
                              "not-ok tracked one")
     author.add_argument("--model", default=None,
@@ -128,6 +174,9 @@ def _parser() -> argparse.ArgumentParser:
                              "human review)")
     author.add_argument("--check", action="store_true",
                         help="with --apply: dry-run, write nothing")
+    author.add_argument("--status", dest="run_status", action="store_true",
+                        help="report the current run: per-chapter state, "
+                             "health checks, and the cascade-ordered retry set")
     author.add_argument("--retry", nargs="+", metavar="ID", default=None,
                         help="re-author rejected chapters with their stored "
                              "violations (synchronous)")
@@ -146,23 +195,11 @@ def _parser() -> argparse.ArgumentParser:
                                 "(re-blesses content as-is; prefer re-authoring)")
     drift.add_argument("ids", nargs="+", metavar="ID",
                        help="chapter ids, or 'all' for every stale anchor everywhere")
-    drift.add_argument("--mode", metavar="SLUG",
+    drift.add_argument("--dimension", "--mode", dest="mode", metavar="SLUG",
                        help="limit to one dimension")
 
     parser.set_defaults(cmd="build", only=None)
     return parser
-
-
-def _resolve_factory(bundles: list[RegisterBundle]):
-    resolve = resolve_factory(bundles)
-
-    def wrapped(chapter_id: str) -> Chapter:
-        try:
-            return resolve(chapter_id)
-        except ValueError as exc:
-            raise CorpusError(str(exc)) from exc
-
-    return wrapped
 
 
 def _require_tracked(bundle: RegisterBundle, mode: str) -> None:
@@ -236,73 +273,16 @@ def _accept_drift(bundles: list[RegisterBundle], resolve, ids: list[str],
     return 0
 
 
-def _pending(bundle: RegisterBundle) -> list[Chapter]:
-    return [
-        c for c in bundle.corpus.chapters
-        if any(s != "ok" for s in bundle.chapter_states(c).values())
-    ]
-
-
-def _author_targets(bundles, resolve, targets):
-    """Resolve author targets to (register key, chapters). Register and group
-    targets take their not-ok chapters; explicit ids are taken as given.
-    One register per authoring run."""
-    chapters: list[Chapter] = []
-    for target in targets:
-        regs = [
-            b for b in bundles
-            if f"{b.corpus.name}/{b.corpus.register}" == target
-            or b.corpus.name == target
-        ]
-        if len(regs) > 1:
-            raise CorpusError(
-                f"{target!r} matches several registers — use <corpus>/<vN>")
-        if regs:
-            chapters += _pending(regs[0])
-            continue
-        groups = [
-            (b, g) for b in bundles for g in b.corpus.group_ids
-            if g == target
-            or f"{b.corpus.name}/{b.corpus.register}/{g}" == target
-        ]
-        if len(groups) > 1:
-            raise CorpusError(
-                f"ambiguous group {target!r} — qualify as <corpus>/<vN>/<group>")
-        if groups:
-            bundle, group_id = groups[0]
-            chapters += [c for c in _pending(bundle) if c.group == group_id]
-            continue
-        chapters.append(resolve(target))
-    seen: set[str] = set()
-    unique = [c for c in chapters if not (c.id in seen or seen.add(c.id))]
-    if not unique:
-        raise CorpusError("no chapters to author (every tracked state is ok?)")
-    keys = {(c.corpus, c.register) for c in unique}
-    if len(keys) > 1:
+def _author_selection(bundles, targets):
+    """The one register an authoring run acts on. The stage enforces one
+    register per run; resolve_targets does the expanding."""
+    selections = resolve_targets(bundles, targets, pending_only=True)
+    if len(selections) > 1:
         raise CorpusError(
             "one register per authoring run — targets span "
-            + ", ".join(f"{n}/{r}" for n, r in sorted(keys)))
-    return keys.pop(), unique
-
-
-def _work_bundle(bundles: list[RegisterBundle], targets: list[str]) -> RegisterBundle:
-    """The register whose authoring run --collect/--apply operate on."""
-    if targets:
-        regs = [
-            b for b in bundles
-            if f"{b.corpus.name}/{b.corpus.register}" == targets[0]
-            or b.corpus.name == targets[0]
-        ]
-        if len(regs) == 1:
-            return regs[0]
-        raise CorpusError(f"{targets[0]!r} does not name exactly one register")
-    with_runs = [
-        b for b in bundles if (authormod.work_dir(b) / "run.json").exists()
-    ]
-    if len(with_runs) == 1:
-        return with_runs[0]
-    raise CorpusError(
-        "name the register, e.g.: author --collect <corpus>/<vN>")
+            + ", ".join(sel.register for sel in selections))
+    sel = selections[0]
+    return sel.key, sel.chapters
 
 
 def _report(bundles: list[RegisterBundle], warnings: list[str]) -> None:
@@ -319,18 +299,34 @@ def _report(bundles: list[RegisterBundle], warnings: list[str]) -> None:
     # Detail lines for actionable drift; bare "none" states are summarized in
     # one line per dimension so unauthored chapters don't flood build output.
     none_counts: dict[str, int] = {}
+    saw_not_ok = False
     for bundle, chapter in chapters:
         states = bundle.chapter_states(chapter)
         if any(state == "stale" for state in states.values()):
+            saw_not_ok = True
             line = "   ".join(f"{slug} {state}" for slug, state in states.items())
             print(f"  {chapter.id:<40} {line}  (content {chapter.content_hash})")
         for slug, state in states.items():
             if state == "none":
                 none_counts[slug] = none_counts.get(slug, 0) + 1
     for slug, count in none_counts.items():
-        print(f"  {count} chapter(s) have no {slug} entries yet (author via /translate)")
+        saw_not_ok = True
+        print(f"  {count} chapter(s) have no {slug} entries yet")
     for warning in warnings:
         print(f"  warning: {warning}")
+    # Voice law 4: never print a state token without its legend.
+    if saw_not_ok:
+        print(f"  legend: {STATE_LEGEND}")
+    # Voice law 3: exit 0 states what is now true; silence is never success.
+    if not saw_not_ok and not warnings:
+        print("ok — every tracked state is ok")
+    # Voice law 5: one next action, generated where every surface gets it.
+    for line in state_line_block(bundles):
+        print(line)
+
+
+def state_line_block(bundles: list[RegisterBundle]) -> list[str]:
+    return ["", *[state_line(b) for b in bundles]] if bundles else []
 
 
 def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
@@ -352,16 +348,34 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
 
     if not bundles:
         if args.cmd == "status":
-            return print_status(bundles, args.json)
+            return print_status(bundles, args.json, warnings)
+        if args.cmd == "where":
+            return print_where(bundles, warnings)
         print(MOUNT_HINT)
         return 1 if args.cmd == "check" and args.strict else 0
 
-    resolve = _resolve_factory(bundles)
+    resolve = checked_resolver(bundles)
     by_key = {(b.corpus.name, b.corpus.register): b for b in bundles}
 
     try:
         if args.cmd == "status":
-            return print_status(bundles, args.json)
+            return print_status(bundles, args.json, warnings)
+
+        if args.cmd == "where":
+            return print_where(bundles, warnings)
+
+        if args.cmd == "resolve":
+            return print_resolution(bundles, args.targets)
+
+        if args.cmd in ("ask", "grade"):
+            from . import study
+            bundle = one_register(bundles, [args.register])
+            if args.cmd == "ask":
+                return study.ask(bundle, args.text, args.n,
+                                 tuple(args.relate) if args.relate else None,
+                                 args.json)
+            return study.grade(bundle, args.text, args.against, args.json,
+                               args.log)
 
         if args.cmd == "extract":
             chapter = resolve(args.id)
@@ -416,17 +430,20 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
                     chapters = [resolve(i) for i in args.retry]
                     bundle = by_key[(chapters[0].corpus, chapters[0].register)]
                     return authormod.retry(bundle, chapters, model, effort)
+                if args.run_status:
+                    return authormod.run_status(
+                        one_register(bundles, args.targets))
                 if args.collect:
                     return authormod.collect(
-                        _work_bundle(bundles, args.targets), args.wait)
+                        one_register(bundles, args.targets), args.wait)
                 if args.apply_results:
                     return authormod.apply_results(
-                        _work_bundle(bundles, args.targets), args.check)
+                        one_register(bundles, args.targets), args.check)
                 if not args.targets:
                     raise CorpusError(
                         "author needs a target: a register (<corpus>/<vN>), "
                         "a group, or chapter ids")
-                key, chapters = _author_targets(bundles, resolve, args.targets)
+                key, chapters = _author_selection(bundles, args.targets)
                 bundle = by_key[key]
                 if args.mode:
                     _require_tracked(bundle, args.mode)
