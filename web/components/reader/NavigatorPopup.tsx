@@ -74,6 +74,7 @@ function DetailBody({ dest }: { dest: Destination }) {
         {bit.aliases && (
           <p className="muted">Also known as: {bit.aliases.join(", ")}.</p>
         )}
+        {bit.anchors.length > 0 && <p className="nav-detail-sub">Anchors</p>}
         {bit.anchors.map((a, i) => (
           <Fragment key={i}>
             <p className="muted nav-anchor-label">
@@ -88,12 +89,16 @@ function DetailBody({ dest }: { dest: Destination }) {
   if (bit.kind === "phrase") {
     return (
       <>
-        <p className="muted">{bit.intent}</p>
+        <p className="nav-detail-intent">{bit.intent}</p>
         {bit.template && (
-          <pre className="phrase-template">
-            <code>{bit.template}</code>
-          </pre>
+          <>
+            <p className="nav-detail-sub">Template</p>
+            <pre className="phrase-template">
+              <code>{bit.template}</code>
+            </pre>
+          </>
         )}
+        {bit.terms.length > 0 && <p className="nav-detail-sub">Terms</p>}
         <p className="mini-badges">
           {bit.terms.map((t) => (
             <span key={t} className="mini-badge">
@@ -108,12 +113,14 @@ function DetailBody({ dest }: { dest: Destination }) {
   const type = dest.href.split("/").pop();
   return (
     <>
-      {dest.detail && <p className="muted">{dest.detail}</p>}
+      {dest.detail && <p className="nav-detail-intent">{dest.detail}</p>}
       <ul className="relation-list">
         {bit.edges.map((e, i) => (
           <li key={i} className="relation-line">
             <span className="relation-arrow">
-              {e.from} —{type}&rarr; {e.to}
+              <span className="nav-edge-term">{e.from}</span>{" "}
+              <span className="nav-edge-type">—{type}&rarr;</span>{" "}
+              <span className="nav-edge-term">{e.to}</span>
             </span>
             <span className="muted">{e.gloss}</span>
           </li>
