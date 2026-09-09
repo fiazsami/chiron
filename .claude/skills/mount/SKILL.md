@@ -4,7 +4,7 @@ description: >
   Mount a learning resource (a git repo or local folder) as a versioned
   corpus register: clone it under corpora/<name>/source/, gather translation
   requirements, plan the extraction interactively, author the register's
-  adapter in corpora/<name>/v<N>/tools/adapter.py, and build its notes.
+  adapter in corpora/<name>/v<N>/tools/adapter.py, and build its pages.
   Re-running /mount on a mounted corpus creates the next register — a fresh
   retelling of the same material. Args: a git URL or local path, optionally
   followed by a corpus name. Mounting is deliberately interactive — the form
@@ -25,16 +25,21 @@ corpus artifacts live only on this machine:
 - `source/` — the cloned repo or a symlink — ONE per corpus, shared by all
   registers
 - `v<N>/translation.yaml` — the register's translation requirements: label,
-  modes, free-text notes, optional groups override
+  modes (the linguistic dimensions to extract), free-text notes, optional
+  groups override, optional adapter knobs
 - `v<N>/tools/adapter.py` — YOUR main deliverable: `scan(cfg, root) -> Corpus`
-- `v<N>/data/`, `v<N>/notes/` — created later by curation and the build
+- `v<N>/data/` — the extracted linguistic structure: `lexicon.yaml`,
+  `phrasebook.yaml`, `relations.yaml` — machine-owned, written only by
+  `uv run python -m tools.lingua set ...`
+- `v<N>/pages/` — generated pages, created by the build
 
 Content flows in two stages: the deterministic adapter scans the source and
-the build scaffolds condensed Markdown pages (rendered by `web/`); the LLM
-authoring passes (`/update-notes`) then fill each page's translated content —
-key facts, redrawn SVG schematics — pinned to a content hash so drift is
-tracked per chapter. Registers let a learner explore different explanations
-of the same material side by side.
+the build renders pages plus the manifest (served by `web/`); the LLM
+authoring passes (`/translate`) then fill the register's linguistic
+structure — lexicon, phrasebook, concept relations — pinned to each
+chapter's content hash via verbatim quote anchors, so drift is tracked per
+chapter. Registers let a learner explore different retellings of the same
+material side by side.
 
 Building the adapter is the learning exercise, and the result belongs to the
 learner: after mounting they maintain it, rebuild after edits, and back up
@@ -72,7 +77,7 @@ learner: after mounting they maintain it, rebuild after edits, and back up
    - corpus.yaml + a `v<N>/` with translation.yaml and adapter but
      `source/` missing (restored backup, fresh machine) → **re-mount**:
      recreate `source/` from `origin` (confirm first if it disagrees with
-     the arg), run `uv run python -m tools.notes --status` to validate the
+     the arg), run `uv run python -m tools.lingua status` to validate the
      existing adapters, then go to step 6.
    - Partial trees (`source/` but no corpus.yaml; a `v<N>/` with
      translation.yaml but no adapter) → **resume**: verify the checkout is
@@ -96,21 +101,23 @@ available):
    existing corpus the name is settled — instead ask "What should this
    register do differently?" (free-text encouraged); the answer seeds the
    register's `label` and `notes`.
-2. **Translation requirements** — "How should this register translate the
-   material?" (multiSelect):
-   - Condensed cliff's notes (`condense-text`, recommended) — key facts per
-     page via the facts machinery.
-   - Redraw diagrams as SVG (`redraw-svg`) — curated flow lanes replace the
-     source's diagrams.
-   - Identify design patterns (`design-patterns`) — recorded in
-     translation.yaml now; page rendering for it ships later.
-   - Other — free text; recorded as a custom mode slug plus notes.
-   Explain briefly: unselected machinery still produces defaults (fallback
-   schematics from Mermaid, scaffolded pages); modes steer what the
-   authoring passes prioritize and how.
+2. **Dimensions** — "Which linguistic dimensions should this register
+   extract?" (multiSelect):
+   - Lexicon (`lexicon`, recommended) — what things are called here, with
+     grounded definitions; see methodology/lexicon.md.
+   - Phrasebook (`phrasebook`) — canonical phrasings for instructing an
+     agent about this corpus; see methodology/phrasebook.md.
+   - Concept relations (`concept-relations`) — typed links between terms;
+     see methodology/concept-relations.md.
+   - Other — free text; recorded as a custom mode slug in translation.yaml
+     (no extraction machinery for it yet).
+   Explain briefly: a dimension that isn't selected isn't tracked at all —
+   no coverage pressure, no data file; phrasebook and concept-relations
+   reference lexicon slugs, so selecting either without `lexicon` is almost
+   always a mistake — say so if it happens.
 3. **Next** — "After the build?"
    - Open the viewer (`cd web && npm run dev`).
-   - Curate now (run `/update-notes <name>/v<N>` on the fresh chapters —
+   - Extract now (run `/translate <name>/v<N>` on the fresh chapters —
      always pass the explicit target so other corpora aren't swept in).
    - Stop there — report and hand over.
 
@@ -134,25 +141,38 @@ a register.
 ## 4. Explore and plan the extraction (the interactive core)
 
 Explore the source repo — directory layout, how material is grouped and
-ordered, per-document structure (frontmatter, headings, diagrams), whether
-there is runnable lab/exercise code, what should be skipped (indexes, setup
-pages, non-content dirs). Read a handful of representative documents, not
-just listings.
+ordered, per-document structure (frontmatter, headings), what should be
+skipped (indexes, setup pages, generated or vendored dirs). Read a handful
+of representative documents or files, not just listings. Classify the
+source's shape:
+
+- A **markdown course** — `<group>/<NN>-doc.md` layout, one subdirectory per
+  group of ordered docs → delegate to `tools.lingua.sources.markdown`.
+- A **code repo** → delegate to `tools.lingua.sources.codetree`, and confirm
+  its deterministic chaptering in the plan gate: groups = top-level
+  directories; chapters = immediate subdirectories, plus a `<group>-files`
+  chapter for files directly in the group directory; loose root files form a
+  `root` group. Offer the `adapter:` knobs in translation.yaml — `include`
+  globs replace the default source-extension filter, `exclude` globs add
+  skips, `depth: 1|2` (1 = one chapter per group's whole subtree, 2 = per
+  immediate subdir, the default).
+- Neither shape fits cleanly → plan a fresh adapter.
 
 Your references are the framework itself — a fresh fork ships no corpus
 artifacts, so never assume any exist:
 
-- `tools/notes/model.py` — the target contract (`Corpus`, `Group`,
-  `Chapter`) and what each field feeds downstream.
-- `tools/notes/translation.py` — the translation.yaml contract and the mode
+- `tools/lingua/model.py` — the target contract (`Corpus`, `Group`,
+  `Chapter`), chapter kinds (`doc` | `code`), and the reserved group ids.
+- `tools/lingua/translation.py` — the translation.yaml contract and the mode
   registry (implemented vs recorded).
-- `tools/notes/sources/markdown.py` — a complete generic adapter; the
-  worked example of the contract end to end.
-- `tools/notes/sources/base.py` — frontmatter, H1, first paragraph,
-  mermaid, text fingerprinting.
-- `tools/notes/gittree.py` — `git_tree`, `sha256_file`, `lab_hash`,
-  `source_version`, `check_workdir` (hash committed blobs, not working-tree
-  bytes).
+- `tools/lingua/sources/markdown.py` — the generic markdown-course adapter;
+  a complete worked example of the contract.
+- `tools/lingua/sources/codetree.py` — the generic code-repo adapter and its
+  `adapter:` knobs.
+- `tools/lingua/gittree.py` — `git_tree`, `sha256_file`, `source_version`,
+  `check_workdir` (hash committed blobs, not working-tree bytes).
+- `methodology/README.md` — the operating theory and the modularity contract
+  behind the dimensions.
 
 If other registers or corpora happen to be mounted locally, their
 `corpora/*/v*/tools/adapter.py` files are extra worked examples — use them
@@ -163,23 +183,24 @@ The plan has two halves, both stated before any code exists:
 
 - **Extraction plan**: the proposed display title (from the source README or
   site name), what becomes a group (ordered, labeled), what becomes a chapter
-  (id/number/slug rules), where title/description come from, what feeds the
-  Mermaid fallback schematic and component detection, how labs are joined
-  (if any), and what is skipped.
+  (id/number/slug rules; kind `doc` or `code`; which files constitute a code
+  chapter), where title/description come from, and what is skipped. For a
+  codetree delegation, show the resulting group/chapter mapping explicitly —
+  the chaptering confirmation is part of this gate.
 - **Translation plan**: the register's `label` and `notes` text, and per
-  selected mode what is produced now versus authored later — condense-text:
-  scaffolded pages now, condensed key facts authored by `/update-notes` and
-  pinned to each chapter's `content_hash`; redraw-svg: fallback schematics
-  now, curated SVG lanes via `/update-notes` flow fixes; design-patterns and
-  custom modes: recorded in translation.yaml, reported as not yet rendered.
+  selected dimension what is produced now versus authored later — the build
+  scaffolds pages and the manifest now; lexicon, phrasebook, and
+  concept-relations entries are authored by `/translate` and pinned to each
+  chapter's `content_hash` via verbatim quote anchors; custom modes are
+  recorded in translation.yaml, reported as not yet implemented.
 
 The approval question folds in the adapter approach: **Approve with best-fit
 delegation** (default — delegate to a shipped building block like the
-markdown adapter when the source fits; author fresh only when nothing fits),
-**Author fresh** (write a purpose-built adapter either way; building it is
-the exercise), **Build together** (pair on it: explain each block and
-confirm before writing the next), or **Revise the plan**. For a pure
-delegation the plan is short — present it anyway; the gate is the point.
+markdown or codetree adapter when the source fits; author fresh only when
+nothing fits), **Author fresh** (write a purpose-built adapter either way;
+building it is the exercise), **Build together** (pair on it: explain each
+block and confirm before writing the next), or **Revise the plan**. For a
+pure delegation the plan is short — present it anyway; the gate is the point.
 
 ## 5. Build the tools
 
@@ -196,21 +217,34 @@ delegation the plan is short — present it anyway; the gate is the point.
 
   ```yaml
   label: <one-line description of this retelling>   # optional but encouraged
-  modes: [condense-text, redraw-svg]                # from the form; required
+  modes: [lexicon, phrasebook, concept-relations]   # from the form; required
   notes: |                                          # free-text requirements
     <the gathered translation requirements, verbatim intent>
   groups: [{id: ..., label: ...}]   # only if discovery order/labels need overriding
+  adapter:                          # only for codetree delegations that need it
+    include: ["src/**/*.py"]        # fnmatch globs; replaces the default extension filter
+    exclude: ["*/generated/*"]      # fnmatch globs; added to the built-in skips
+    depth: 2                        # 1 = chapter per group; 2 = per subdir (default)
   ```
 
 - Write `corpora/<name>/v<N>/tools/adapter.py` implementing
   `scan(cfg: CorpusConfig, root: Path) -> Corpus`. A delegation is four
-  lines:
+  lines — markdown course:
 
   ```python
-  from tools.notes.sources import markdown
+  from tools.lingua.sources import markdown
 
   def scan(cfg, root):
       return markdown.scan(cfg, root)
+  ```
+
+  or code repo:
+
+  ```python
+  from tools.lingua.sources import codetree
+
+  def scan(cfg, root):
+      return codetree.scan(cfg, root)
   ```
 
   A fresh adapter:
@@ -220,34 +254,40 @@ delegation the plan is short — present it anyway; the gate is the point.
     write anything. Adapters are register-agnostic — the pipeline stamps
     the register onto the scan result.
   - `content_hash` must be a stable 12-hex digest of the chapter's source
-    content — it pins the curation freshness system.
+    content — it pins every anchor's `curated_against`.
+  - Group ids `lexicon`, `phrasebook`, `relations`, `concept-relations`,
+    `chat`, `api`, `assets` are reserved (they would shadow viewer routes or
+    generated pages) — the build rejects them.
   - In Build-together mode, write in logical blocks (group discovery →
-    chapter loop → hashing/joins), explaining each and confirming before
-    the next — checkpoints, not a line-by-line quiz.
+    chapter loop → hashing), explaining each and confirming before the
+    next — checkpoints, not a line-by-line quiz.
 
-- Iterate `uv run python -m tools.notes --status` until the scan succeeds
+- Iterate `uv run python -m tools.lingua status` until the scan succeeds
   and the chapter list looks right (ids like `<name>/v<N>/<group>/<NN>`,
-  groups, titles, lab joins). Spot-check with `--extract <id>` — the bundle
-  should show the Translation requirements section.
+  groups, titles, kinds). Spot-check with
+  `uv run python -m tools.lingua extract <id>` — the bundle should show the
+  Translation requirements section and one Methodology section per selected
+  dimension.
 
 ## 6. Build and finish
 
-1. `uv run python -m tools.notes` — full build; then review the summary and
-   a couple of pages under `corpora/<name>/v<N>/notes/`.
-2. Report: chapters per group, labs found, schematic/facts states (new
-   registers start `fallback`/`none` — that is normal), and each mode's
-   status (implemented modes are active; `design-patterns` and custom modes
-   are recorded — not yet rendered).
+1. `uv run python -m tools.lingua` — full build; then review the summary and
+   a couple of pages under `corpora/<name>/v<N>/pages/`.
+2. Report: chapters per group, chapter kinds, per-dimension states (new
+   registers start with every tracked state `none` — that is normal), and
+   each mode's status (implemented modes are active; custom modes are
+   recorded — not yet implemented).
 3. Hand over ownership — nothing gets committed; everything under
    `corpora/` is gitignored and lives only on this machine:
    - The adapter is the learner's: edit
      `corpora/<name>/v<N>/tools/adapter.py`, rebuild with
-     `uv run python -m tools.notes`.
+     `uv run python -m tools.lingua`.
    - Update the material: `git -C corpora/<name>/source pull`, then rebuild
-     — changed chapters flag stale per content type, in every register.
-   - Curate: `/update-notes <name>/v<N>` authors key facts and flow
-     schematics per the register's translation requirements; `data/` is
-     hand-authored value.
+     — changed chapters flag their anchors stale per dimension, in every
+     register.
+   - Extract: `/translate <name>/v<N>` authors the register's lexicon,
+     phrasebook, and concept relations per its translation requirements;
+     `data/` is the register's accumulated value.
    - Iterate: `/mount` the same corpus again to create `v<N+1>` — a fresh
      retelling with different translation requirements; older registers
      stay browsable.
@@ -260,14 +300,14 @@ delegation the plan is short — present it anyway; the gate is the point.
 
 - Never modify anything under `corpora/*/source/` — corpus material is
   read-only (and may be someone else's licensed work).
-- Never hand-write files under `notes/` (generated) or `data/` (curation
-  flows through `/update-notes` and `--set-facts`).
+- Never hand-write files under `pages/` (generated) or `data/` (extraction
+  flows through `/translate` and `uv run python -m tools.lingua set`).
 - The adapter must not touch the network or mutate state.
 - The form and the plan gate are mandatory.
 - Registers are append-only: creating `v<N+1>` never edits an older
   register's translation.yaml, adapter, or data/.
 - Never share or copy `data/` between registers — each retelling is
-  curated from scratch against its own requirements; that's the point.
+  extracted from scratch against its own requirements; that's the point.
 - One `source/` per corpus; never a second checkout under a register.
 - Don't fight the model: if material genuinely doesn't fit the
   group/chapter shape, say so and discuss options with the user instead of
