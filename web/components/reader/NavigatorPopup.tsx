@@ -224,18 +224,23 @@ export default function NavigatorPopup({
     });
   }
 
+  // The reader's spatial idiom carries into the modal: right (l/f) drills
+  // into content — list → detail → the bit's full page — and left (j/a)
+  // backs out — detail → list → closed.
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const down = e.key === "ArrowDown" || e.key === "k" || e.key === "d";
     const up = e.key === "ArrowUp" || e.key === "i" || e.key === "e";
+    const left = e.key === "ArrowLeft" || e.key === "j" || e.key === "a";
+    const right = e.key === "ArrowRight" || e.key === "l" || e.key === "f";
     if (mode === "detail") {
       if (down || up) {
         e.preventDefault();
         moveDetail(down ? 1 : -1);
-      } else if (e.key === "Enter") {
+      } else if (right || e.key === "Enter") {
         e.preventDefault();
         go(display[sel]);
-      } else if (e.key === "Escape") {
+      } else if (left || e.key === "Escape") {
         e.preventDefault();
         setMode("list");
       } else if (/^[a-z]$/.test(e.key)) {
@@ -248,14 +253,14 @@ export default function NavigatorPopup({
       setSel((s) =>
         down ? Math.min(Math.max(display.length - 1, 0), s + 1) : Math.max(0, s - 1),
       );
-    } else if (e.key === "Enter") {
+    } else if (right || e.key === "Enter") {
       e.preventDefault();
       activate(display[sel]);
-    } else if (e.key === "Escape") {
+    } else if (left || e.key === "Escape") {
       e.preventDefault();
       onClose();
     } else if (/^[a-z]$/.test(e.key)) {
-      e.preventDefault(); // swallow the reader keymap (j/l/a/f/p/w…)
+      e.preventDefault(); // swallow the rest of the reader keymap (p/w…)
     }
   }
 
@@ -375,8 +380,8 @@ export default function NavigatorPopup({
         )}
         <p className="navigator-hint">
           {inDetail
-            ? "↑↓ browse · ↵ open page · esc back"
-            : "↑↓ / i k / e d navigate · ↵ open · esc close"}
+            ? "↑↓ browse · l / ↵ open page · j / esc back"
+            : "↑↓ / i k navigate · l / ↵ open · j / esc close"}
         </p>
       </div>
     </div>
