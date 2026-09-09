@@ -13,6 +13,7 @@ export interface AnchorVM {
   chapterHref: string | null; // null when the chapter no longer exists
   path?: string; // source-relative file (code chapters)
   quote: string;
+  code: boolean; // anchored chapter is kind=code — the quote is source code
   curatedAgainst: string; // 12-hex drift pin
   chapterHash: string; // chapter content_hash at build time ("" if unresolvable)
   stale: boolean; // curatedAgainst !== chapterHash (false when unresolvable)

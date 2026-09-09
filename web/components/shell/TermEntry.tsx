@@ -1,12 +1,14 @@
 "use client";
 
+import { useMemo } from "react";
+import { groupAnchors } from "@/lib/shell/evidence";
 import type { RegisterSubstrate, TermVM } from "@/lib/substrate-types";
-import Evidence from "./Evidence";
+import EvidenceList from "./EvidenceList";
 import Reference from "./Reference";
 import Section from "./Section";
 
-// The full term entry: every required attribute, all anchors (1-8, no
-// viewer cap), and every inverse relationship (phrasings, edges, mentions).
+// The full term entry: every required attribute, deduped evidence, and
+// every inverse relationship (phrasings, edges, mentions).
 
 function EdgeLine({
   substrate,
@@ -22,8 +24,8 @@ function EdgeLine({
   const term = substrate.terms[other];
   return (
     <li className="relation-line">
-      <span className="edge-type">{edge.type}</span>
-      <span>
+      <div>
+        <span className="edge-type">{edge.type}</span>{" "}
         {term ? (
           <Reference href={term.href} headword={term.term} kind="term">
             {term.term}
@@ -31,8 +33,8 @@ function EdgeLine({
         ) : (
           other
         )}
-        <span className="gloss">{edge.gloss}</span>
-      </span>
+      </div>
+      <div className="gloss">{edge.gloss}</div>
     </li>
   );
 }
@@ -48,6 +50,7 @@ export default function TermEntry({
   const mentioned = term.mentionedIn
     .map((id) => substrate.chapters[id])
     .filter(Boolean);
+  const evidence = useMemo(() => groupAnchors(term.anchors), [term]);
 
   return (
     <article className="entry-body">
@@ -77,10 +80,8 @@ export default function TermEntry({
         </Section>
       )}
 
-      <Section title="Evidence" count={term.anchors.length}>
-        {term.anchors.map((a, i) => (
-          <Evidence key={i} anchor={a} />
-        ))}
+      <Section title="Evidence" count={evidence.length}>
+        <EvidenceList key={term.slug} groups={evidence} />
       </Section>
 
       {term.phrasings.length > 0 && (

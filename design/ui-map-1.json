@@ -29,9 +29,9 @@
     "inlineStyles": "pane widths only, as today"
   },
   "layout": {
-    "shell": "rail (232px) | index (336px) | entry (fluid, reading measure 66ch) with a trail bar pinned above the entry pane. Panes are resizable; widths persisted. One pane owns keyboard focus at a time (2px --pine bar on its top edge).",
+    "shell": "rail (232px) | index (336px) | entry (fluid, reading measure 66ch) with a trail bar pinned above the entry pane. Panes are resizable; widths persisted. One pane owns keyboard focus at a time (2px --pine bar on its top edge). Adjacent panes are separated by a 1px --edge hairline (rail|index and index|entry) — the three surface tints are near-identical by design and need the rule to read as panes.",
     "trail": "The dive stack made visible: a horizontal breadcrumb of entries visited by following cross-references (cap 16, as today). Backspace/u pops. Rendered above the entry, not inside it, so the entry's reading measure is never interrupted.",
-    "entryMeasure": "max-width 66ch of the reading face at 16px (~640px); padding 48px 56px 96px; sections separated by 32px, not by rules",
+    "entryMeasure": "reading measure 66ch of the reading face at 16px, anchored at a fixed 640px so serif, sans and mono blocks share one right edge (ch resolves per element font); padding 48px 56px 96px; sections separated by 32px, not by rules",
     "responsive": {
       "≤1100px": "rail collapses to a 56px icon strip (dimension glyphs 1-4 + drift dot); index stays",
       "≤880px": "index and rail become overlays (as today); entry padding 32px 20px; type scale steps down one notch for the entry headword only (28→23); reading sizes never change"
@@ -93,8 +93,8 @@
         "register-level state (worst-of-chapters) as one drift dot",
         "corpus.checkout and corpus.urls as provenance (previously typed, never rendered)"
       ],
-      "keyboard": "j/k rows, enter opens the register into the shell; 0 returns here from anywhere",
-      "notes": "Replaces corpora-index and register-hub. The hub's mode badges move into the rail."
+      "keyboard": "j/k rows, enter opens the register into the shell (the first keypress reveals the cursor ring — no ring on first paint); 0 returns here from anywhere",
+      "notes": "Replaces corpora-index and register-hub. The hub's mode badges move into the rail. Composition: page on --bg-index, one --paper card per register with a 1px --edge border and soft shadow — the cards are the only paper on the page."
     },
     {
       "id": "rail",
@@ -116,7 +116,7 @@
         "lexicon: term.term + term.kind badge + one-line term.definition (truncated at 90 chars) + aliases as a muted second line when present; sorted alphabetically, or grouped by term.kind or by chapter.defines via the sort toggle",
         "phrasebook: phrase.phrase + phrase.intent (one line); grouped by first term in phrase.terms or alphabetically",
         "concept-relations: grouped by relationEdge.type (section header = type + count); row = from → to with gloss",
-        "chapters: grouped by group.label in register order; row = chapter.number + chapter.title + chapter.kind mark + per-dimension state dots",
+        "chapters: grouped by group.label in register order; row = chapter.number + chapter.title + chapter.kind mark; per-dimension state dots appear only when some state ≠ ok — a clean row means healthy",
         "filter field (/) with live count 'n of N'"
       ],
       "keyboard": "j/k move the cursor, enter opens into entry, / filters, s cycles sort/grouping, esc clears filter",
@@ -131,7 +131,7 @@
         "term.definition as the reading block",
         "term.aliases as a plain run-in list ('Also written: …')",
         "Defined in: chapter.title (cross-reference) via term.defined_in",
-        "Evidence: every anchor (1-8, no viewer cap): anchor.quote with provenance (chapter.title, anchor.path for code chapters) and a drift mark when anchor.curated_against ≠ chapter.content_hash",
+        "Evidence: anchors deduped into quote-groups (anchors merge across chapters, so entries can carry 10-24 anchors with repeated quote text): one quote block per distinct quote, every distinct (chapter, path) provenance line beneath it, first-seen order; the first 6 groups render, the rest behind an expandable 'N more quotes' row (per-entry, not persisted). Drift marks per provenance line when anchor.curated_against ≠ chapter.content_hash",
         "Phrasings: phrase.phrase + phrase.intent for each phrase whose terms include this slug (cross-references)",
         "Relations: outgoing and incoming relationEdge lists in two columns, edge type as the column key, gloss inline (cross-references to the other endpoint)",
         "Mentioned in: derived chapter list"
@@ -160,7 +160,7 @@
         "relationEdge.gloss as the reading block",
         "type meaning from the closed relationType enum ('feeds: output of one becomes input of the other')",
         "Evidence: anchors",
-        "Neighborhood: other edges sharing either endpoint, grouped by type"
+        "Neighborhood: other edges sharing either endpoint, grouped under small type headings; rows never repeat the shared endpoint — a muted direction arrow (→ outgoing, ← incoming) + the other endpoint + gloss, the gloss carrying the detail"
       ],
       "keyboard": "as entry-term; [ ] step through edges of the same type"
     },
@@ -169,9 +169,9 @@
       "kind": "route",
       "route": "/[corpus]/[register]/chapters/[group]/[number]",
       "displays": [
-        "chapter.title with chapter.number and group.label; chapter.description as standfirst; chapter.kind mark",
+        "chapter.title as headword with group.label · chapter.number as a muted sans meta beside it; the entry-kind badge appears only for kind=code; chapter.description as standfirst (markdown-stripped)",
         "provenance block: chapter.unit_paths (primary_path first), chapter.source_url, chapter.content_hash",
-        "state per implemented dimension with stale anchor counts and the repair command",
+        "state per implemented dimension, quiet when healthy: one compact line (ok dots + 'all ok') when nothing is stale or none; the full per-dimension rows, stale anchor counts, and repair commands appear only on drift",
         "Defines: terms with definition first line",
         "Mentions: terms anchored here but defined elsewhere",
         "Phrasings grounded here",
@@ -226,7 +226,7 @@
       "scope": "corpus + register identity, totals, provenance, worst-of state",
       "rail": "register.modes → dimension rows with totals; chapter count; stale count",
       "index": "identity + one line of meaning per entry (headword, kind/type, definition|intent|gloss first line, aliases); state dots on chapters",
-      "entry-*": "the full entry: every attribute the datamodel marks required, all anchors (1-8), all inverse relationships (phrasings, edges, mentionedIn)",
+      "entry-*": "the full entry: every attribute the datamodel marks required, all anchors as deduped quote-groups (first 6 visible, rest expandable; e cycles visible groups), all inverse relationships (phrasings, edges, mentionedIn)",
       "peek": "headword + kind + first two lines + first anchor",
       "jump": "identity + aliases as match keys",
       "drill": "one attribute pair per prompt, answer with one anchor"
@@ -314,7 +314,8 @@
         "active": "600 + --sel bg + 3px left --dim-hue",
         "count": "13 tabular --muted",
         "keycap": "11 mono in --edge box, right-aligned",
-        "recorded": "--muted, dashed left rule, no keycap"
+        "recorded": "--muted, dashed left rule, no keycap",
+        "overflow": "label never wraps the 32px row: nowrap + ellipsis ('Concept relations' is the widest)"
       },
       "keyboard": "1-4"
     },
@@ -359,7 +360,8 @@
         "tracking": ".01em",
         "transform": "none",
         "count": "13 tabular --muted",
-        "sticky": true
+        "sticky": true,
+        "marker": "3×12px rounded bar in --dim-hue before the label (the index-section consumer of the dimension hue)"
       }
     },
     {
@@ -439,7 +441,8 @@
         "ok": "--pine",
         "stale": "--amber",
         "none": "--edge",
-        "tooltip": "dimension.label + state"
+        "tooltip": "dimension.label + state",
+        "quietWhenOk": "index chapter rows omit the dots entirely when every state is ok — health is the absence of marks, drift is the presence"
       }
     },
     {
@@ -489,7 +492,7 @@
     {
       "id": "entry-kind",
       "area": "entry",
-      "binds": "term.kind | chapter.kind",
+      "binds": "term.kind | chapter.kind (code mark only — a chapter's group and number are muted sans meta beside the headword, never badged)",
       "contentKind": "label",
       "spec": {
         "face": "sans",
@@ -570,6 +573,7 @@
         "rule": "2px --edge-strong left",
         "hangingPunct": "opening quote hangs into the gutter",
         "bg": "none",
+        "codeVariant": "quotes anchored into kind=code chapters are source text: mono 14/1.5, no typographic quotes, same rule",
         "note": "reads as source text, not as a callout; the only verbatim block"
       }
     },
@@ -583,8 +587,8 @@
         "size": 13,
         "color": "--muted",
         "path": "mono 12",
-        "placement": "below the quote, indented to the rule",
-        "chapter": "cross-reference"
+        "placement": "below the quote, indented to the rule; one line per distinct (chapter, path) that pinned the quote",
+        "chapter": "quiet cross-reference: --ink-2 with tint underline, --pine only on cursor/hover — dozens of provenance lines must not out-shout the primary references"
       }
     },
     {
@@ -634,9 +638,9 @@
       "contentKind": "label+headword+prose",
       "spec": {
         "columnHead": "sans 13 600 --ink-2 ('this → others', 'others → this')",
-        "type": "sans 13 500 --blue, right-aligned in a 12ch column",
+        "type": "sans 13 500 --blue, inline before the endpoint — no fixed gutter, every line shares the measure's left edge",
         "endpoint": "serif 16 600 cross-reference",
-        "gloss": "sans 14 --ink-2, clamp 2"
+        "gloss": "sans 14 --ink-2, clamp 2, on its own line under the endpoint"
       }
     },
     {
@@ -652,7 +656,7 @@
         "padding": "12px 16px",
         "radius": 4,
         "slots": "{…} in --pine 600",
-        "copyHint": "'y copies' in 11 --muted at top right"
+        "copyHint": "'y copies' in 11 --muted, right-aligned above the block (never overlaid on the code)"
       },
       "keyboard": "y"
     },
@@ -839,7 +843,7 @@
       "note": "one scale for the whole viewer; the chrome/article split is gone"
     },
     "contentKindStyles": {
-      "prose": "serif base/1.55, --ink, measure 66ch; index and peek use serif or sans at sm/md with clamp",
+      "prose": "serif base/1.55, --ink, measure 640px (66ch of the reading face, fixed in px so mixed-font blocks share a right edge); index and peek use serif or sans at sm/md with clamp",
       "headword": "serif 600 at xxl (entry), md (index/chips), base (inline); never transformed; hyphenation off",
       "label": "sans 500-600 at sm, --ink-2 or --muted, sentence case, tracking ≤ .01em; badges only for term.kind and chapter.kind",
       "identifier": "mono at sm, --muted or --ink-2, white-space nowrap, no background",
@@ -1007,6 +1011,8 @@
     }
   },
   "dependencies": [
+    "chapter.description may contain inline markdown ([links](url), *emphasis*, `code`); the viewer strips the syntax for the standfirst rather than rendering it literally.",
+    "Anchors accumulate across chapters (mention anchors merge into the entry), so real entries exceed the 1-8 authoring cap with repeated quote text — the Evidence dedup + collapse policy above is load-bearing, not decorative.",
     "Manifest must carry per-chapter relation edges (currently an edge count only) for entry-chapter 'Relations anchored here'.",
     "anchor.path and anchor.curated_against must reach the viewer for evidence provenance and per-anchor drift marks.",
     "Aliases must be included in the search index for jump and index filter.",

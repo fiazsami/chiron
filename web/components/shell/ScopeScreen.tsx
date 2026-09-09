@@ -10,12 +10,14 @@ import type { ScopeData } from "@/lib/substrate-types";
 
 export default function ScopeScreen({ data }: { data: ScopeData }) {
   const router = useRouter();
-  const [cursor, setCursor] = useState(0);
+  // -1 until the keyboard is used — no ring on first paint.
+  const [cursor, setCursor] = useState(-1);
   const rowEls = useRef(new Map<number, HTMLElement>());
   const registers = data.registers;
 
   useEffect(() => {
-    rowEls.current.get(cursor)?.scrollIntoView({ block: "nearest" });
+    if (cursor >= 0)
+      rowEls.current.get(cursor)?.scrollIntoView({ block: "nearest" });
   }, [cursor]);
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export default function ScopeScreen({ data }: { data: ScopeData }) {
         setCursor((c) => Math.max(0, c - 1));
       } else if (e.key === "Enter") {
         e.preventDefault();
-        const row = registers[cursor];
+        const row = registers[Math.max(0, cursor)];
         if (row) router.push(row.href);
       } else if (e.key === "t") {
         e.preventDefault();

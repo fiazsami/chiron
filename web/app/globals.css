@@ -128,7 +128,9 @@
   --lh-chrome: 1.4;
   --lh-headword: 1.15;
   --lh-code: 1.5;
-  --measure: 66ch;
+  /* 66ch of the reading face at 16px, anchored in px so serif, sans and
+   * mono blocks share one right edge (ch resolves per element font). */
+  --measure: 640px;
   --motion: 120ms;
   --rail-w: 232px;
   --index-w: 336px;
@@ -170,7 +172,10 @@ body {
   color: var(--ink);
   font: 400 var(--text-md) / var(--lh-chrome) var(--sans);
   font-optical-sizing: auto;
-  -webkit-font-smoothing: antialiased;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
 }
 ::selection {
   background: var(--pine-tint);
@@ -335,6 +340,7 @@ pre {
   width: var(--rail-w);
   flex: none;
   background: var(--bg-rail);
+  border-right: 1px solid var(--edge);
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -345,6 +351,7 @@ pre {
   width: var(--index-w);
   flex: none;
   background: var(--bg-index);
+  border-right: 1px solid var(--edge);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -394,6 +401,13 @@ pre {
 .dimension-row {
   font: 500 var(--text-md) / var(--lh-chrome) var(--sans);
   color: var(--ink);
+}
+.dimension-row > .rail-text:first-child {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .dimension-row .count {
   font-variant-numeric: tabular-nums;
@@ -470,6 +484,15 @@ pre {
   font: 600 var(--text-sm) / var(--lh-chrome) var(--sans);
   color: var(--ink-2);
   letter-spacing: 0.01em;
+}
+.index-scroll .index-section::before {
+  content: "";
+  width: 3px;
+  height: 12px;
+  align-self: center;
+  border-radius: 2px;
+  background: var(--dim-hue, var(--ink-2));
+  flex: none;
 }
 .index-section .count {
   font-weight: 400;
@@ -571,8 +594,8 @@ pre {
   max-width: var(--measure);
 }
 .entry-headword-edge .edge-type {
-  font: 500 var(--text-md) / 1 var(--sans);
-  color: var(--blue);
+  font-size: var(--text-md);
+  line-height: 1;
   white-space: nowrap;
   margin: 0 6px;
 }
@@ -583,6 +606,11 @@ pre {
   border-radius: 4px;
   padding: 2px 8px;
   flex: none;
+}
+.entry-meta {
+  font: 400 var(--text-sm) / var(--lh-chrome) var(--sans);
+  color: var(--muted);
+  white-space: nowrap;
 }
 .entry-slug {
   font: 400 var(--text-sm) / 1 var(--mono);
@@ -631,6 +659,16 @@ pre {
 .reference.cursor {
   text-decoration-color: var(--pine);
 }
+/* Quiet references (evidence provenance): navigable but not clamoring —
+ * ink-2 at rest, pine only under the cursor or pointer. */
+.reference.quiet {
+  color: var(--ink-2);
+}
+.reference.quiet:hover,
+.reference.quiet.cursor {
+  color: var(--pine);
+  text-decoration-color: var(--pine);
+}
 .hint-label {
   position: absolute;
   top: -1.35em;
@@ -658,6 +696,12 @@ pre {
   border-left: 2px solid var(--edge-strong);
   padding-left: 14px;
   hanging-punctuation: first;
+}
+/* Quotes from code chapters are source text: mono, unquoted. */
+.evidence-quote.code {
+  font: 400 14px / var(--lh-code) var(--mono);
+  hanging-punctuation: none;
+  overflow-wrap: anywhere;
 }
 .evidence.stale .evidence-quote {
   border-left-color: var(--amber);
@@ -688,6 +732,18 @@ pre {
   background: var(--amber);
   flex: none;
 }
+.evidence-more {
+  display: block;
+  font: 400 var(--text-sm) / 1 var(--sans);
+  color: var(--ink-2);
+  background: var(--inset);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-top: 12px;
+}
+.evidence-more:hover {
+  background: var(--hover);
+}
 .phrasing-row {
   max-width: var(--measure);
 }
@@ -713,20 +769,17 @@ pre {
   color: var(--ink-2);
   margin-bottom: 8px;
 }
-.relation-line {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+/* Relation lines share the measure's left edge: a small type label inline
+ * before the endpoint, gloss beneath — no floating gutter. */
+.edge-type {
+  font: 500 var(--text-sm) / var(--lh-chrome) var(--sans);
+  color: var(--blue);
+}
+.edge-arrow {
+  color: var(--muted);
 }
 .relation-line + .relation-line {
   margin-top: 8px;
-}
-.relation-line .edge-type {
-  font: 500 var(--text-sm) / var(--lh-chrome) var(--sans);
-  color: var(--blue);
-  width: 12ch;
-  flex: none;
-  text-align: right;
 }
 .relation-line .reference {
   font: 600 var(--text-base) / var(--lh-chrome) var(--serif);
@@ -739,26 +792,32 @@ pre {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.neighborhood-group + .neighborhood-group {
+  margin-top: 16px;
+}
+.neighborhood-group h3 {
+  margin-bottom: 6px;
+}
+.template-wrap {
+  max-width: var(--measure);
+}
+.template-wrap .copy-hint {
+  text-align: right;
+  font: 400 var(--text-xs) / 1 var(--sans);
+  color: var(--muted);
+  margin-bottom: 4px;
+}
 .template-block {
-  position: relative;
   font: 400 14px / var(--lh-code) var(--mono);
   background: var(--inset);
   padding: 12px 16px;
   border-radius: 4px;
-  max-width: var(--measure);
   overflow-x: auto;
   white-space: pre-wrap;
 }
 .template-block .slot {
   color: var(--pine);
   font-weight: 600;
-}
-.template-block .copy-hint {
-  position: absolute;
-  top: 6px;
-  right: 10px;
-  font: 400 var(--text-xs) / 1 var(--sans);
-  color: var(--muted);
 }
 .term-chip {
   font: 600 var(--text-md) / var(--lh-chrome) var(--serif);
@@ -973,6 +1032,7 @@ pre {
 /* 14 ── scope (/) — outside the shell */
 .scope-page {
   min-height: 100dvh;
+  background: var(--bg-index);
   padding: 64px 32px 96px;
   display: flex;
   flex-direction: column;
@@ -987,8 +1047,10 @@ pre {
 }
 .scope-register {
   display: block;
+  background: var(--paper);
   border: 1px solid var(--edge);
   border-radius: 10px;
+  box-shadow: 0 1px 3px var(--shadow);
   padding: 24px 28px;
   width: 100%;
   cursor: pointer;

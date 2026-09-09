@@ -203,6 +203,8 @@ export function rowsFor(
   } else {
     candidates = substrate.chapterOrder.map((id) => {
       const c = substrate.chapters[id];
+      // Healthy rows stay quiet: dots appear only when some state ≠ ok.
+      const noteworthy = Object.values(c.states).some((s) => s !== "ok");
       return {
         row: {
           rowType: "entry",
@@ -211,7 +213,7 @@ export function rowsFor(
           headword: c.title,
           kind: c.kind === "code" ? "code" : undefined,
           number: c.number,
-          states: c.states,
+          ...(noteworthy ? { states: c.states } : {}),
         },
         match: [c.title, c.slug, id].join(" ").toLowerCase(),
         section: c.group,
@@ -223,7 +225,7 @@ export function rowsFor(
     }));
     if (staleOnly) {
       candidates = candidates.filter((c) =>
-        Object.values(c.row.states ?? {}).includes("stale"),
+        Object.values(substrate.chapters[c.row.id].states).includes("stale"),
       );
     }
   }

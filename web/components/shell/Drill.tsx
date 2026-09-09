@@ -130,8 +130,12 @@ export default function Drill({
                 {item.gloss && <div className="drill-prompt">{item.gloss}</div>}
                 {item.anchor && (
                   <figure className="evidence">
-                    <blockquote className="evidence-quote">
-                      “{item.anchor.quote}”
+                    <blockquote
+                      className={`evidence-quote${item.anchor.code ? " code" : ""}`}
+                    >
+                      {item.anchor.code
+                        ? item.anchor.quote
+                        : `“${item.anchor.quote}”`}
                     </blockquote>
                     <figcaption className="evidence-provenance">
                       {item.anchor.chapterTitle}

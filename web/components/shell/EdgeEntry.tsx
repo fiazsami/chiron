@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import { RELATION_TYPE_MEANINGS } from "@/lib/lingua-types";
+import { groupAnchors } from "@/lib/shell/evidence";
 import type { EdgeVM, RegisterSubstrate } from "@/lib/substrate-types";
-import Evidence from "./Evidence";
+import EvidenceList from "./EvidenceList";
 import Reference from "./Reference";
 import Section from "./Section";
 
@@ -15,8 +17,10 @@ export default function EdgeEntry({
 }) {
   const from = substrate.terms[edge.from];
   const to = substrate.terms[edge.to];
+  const evidence = useMemo(() => groupAnchors(edge.anchors), [edge]);
 
-  // Other edges sharing either endpoint, grouped by type.
+  // Other edges sharing either endpoint, grouped by type. Rows never repeat
+  // the shared endpoint — arrow + the other end; the gloss carries detail.
   const neighborhood = new Map<string, EdgeVM[]>();
   const seen = new Set([edge.id]);
   for (const t of [from, to]) {
@@ -65,33 +69,45 @@ export default function EdgeEntry({
         </p>
       </header>
 
-      <Section title="Evidence" count={edge.anchors.length}>
-        {edge.anchors.map((a, i) => (
-          <Evidence key={i} anchor={a} />
-        ))}
+      <Section title="Evidence" count={evidence.length}>
+        <EvidenceList key={edge.id} groups={evidence} />
       </Section>
 
       {neighborhood.size > 0 && (
         <Section title="Neighborhood" count={seen.size - 1}>
           {[...neighborhood.entries()].map(([type, list]) => (
-            <ul key={type} style={{ marginBottom: 8 }}>
-              {list.map((e) => (
-                <li key={e.id} className="relation-line">
-                  <span className="edge-type">{type}</span>
-                  <span>
-                    <Reference
-                      href={e.href}
-                      headword={`${substrate.terms[e.from]?.term ?? e.from} → ${substrate.terms[e.to]?.term ?? e.to}`}
-                      kind="edge"
-                    >
-                      {substrate.terms[e.from]?.term ?? e.from} →{" "}
-                      {substrate.terms[e.to]?.term ?? e.to}
-                    </Reference>
-                    <span className="gloss">{e.gloss}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div key={type} className="neighborhood-group">
+              <h3 className="edge-type">{type}</h3>
+              <ul>
+                {list.map((e) => {
+                  const outgoing =
+                    e.from === edge.from || e.from === edge.to;
+                  const otherSlug = outgoing ? e.to : e.from;
+                  const other = substrate.terms[otherSlug];
+                  return (
+                    <li key={e.id} className="relation-line">
+                      <div>
+                        <span className="edge-arrow">
+                          {outgoing ? "→" : "←"}
+                        </span>{" "}
+                        {other ? (
+                          <Reference
+                            href={e.href}
+                            headword={other.term}
+                            kind="edge"
+                          >
+                            {other.term}
+                          </Reference>
+                        ) : (
+                          otherSlug
+                        )}
+                      </div>
+                      <div className="gloss">{e.gloss}</div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           ))}
         </Section>
       )}

@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
+import { groupAnchors } from "@/lib/shell/evidence";
 import type { PhraseVM, RegisterSubstrate } from "@/lib/substrate-types";
-import Evidence from "./Evidence";
+import EvidenceList from "./EvidenceList";
 import Reference from "./Reference";
 import Section from "./Section";
 import TemplateBlock from "./TemplateBlock";
@@ -13,6 +15,7 @@ export default function PhraseEntry({
   substrate: RegisterSubstrate;
   phrase: PhraseVM;
 }) {
+  const evidence = useMemo(() => groupAnchors(phrase.anchors), [phrase]);
   return (
     <article className="entry-body">
       <header>
@@ -55,10 +58,8 @@ export default function PhraseEntry({
         </p>
       </Section>
 
-      <Section title="Evidence" count={phrase.anchors.length}>
-        {phrase.anchors.map((a, i) => (
-          <Evidence key={i} anchor={a} />
-        ))}
+      <Section title="Evidence" count={evidence.length}>
+        <EvidenceList key={phrase.slug} groups={evidence} />
       </Section>
     </article>
   );

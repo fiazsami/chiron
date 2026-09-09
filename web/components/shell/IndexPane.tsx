@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
-import { DIMENSION_LABELS } from "@/lib/dimensions";
+import { DIMENSION_LABELS, type Dimension } from "@/lib/dimensions";
 import type { IndexRows, SortMode } from "@/lib/shell/index-rows";
 import { SORT_CYCLES, SORT_LABELS } from "@/lib/shell/index-rows";
 import type { ViewKey } from "@/lib/shell/route";
@@ -118,7 +118,11 @@ export default function IndexPane({
                 {row.states && (
                   <span className="state-dots">
                     {Object.entries(row.states).map(([d, s]) => (
-                      <i key={d} className={s} title={`${d}: ${s}`} />
+                      <i
+                        key={d}
+                        className={s}
+                        title={`${DIMENSION_LABELS[d as Dimension] ?? d}: ${s}`}
+                      />
                     ))}
                   </span>
                 )}

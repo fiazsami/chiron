@@ -36,13 +36,27 @@ interface ChapterMeta {
   sourceUrl: string | null;
 }
 
+// Chapter descriptions come from corpus prose and may carry inline markdown
+// ([links](url), *emphasis*, `code`); the standfirst is plain text, so strip
+// the syntax rather than render it literally.
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(\*|_)([^*_]+)\1/g, "$2")
+    .replace(/`([^`]*)`/g, "$1")
+    .trim();
+}
+
 async function readChapterMeta(page: string): Promise<ChapterMeta> {
   try {
     const raw = await fs.readFile(path.join(CORPORA_DIR, page), "utf8");
     const data = matter(raw).data as Record<string, unknown>;
     return {
       description:
-        typeof data.description === "string" ? data.description : null,
+        typeof data.description === "string"
+          ? stripMarkdown(data.description)
+          : null,
       sourceUrl: typeof data.source_url === "string" ? data.source_url : null,
     };
   } catch {
@@ -107,6 +121,7 @@ async function buildSubstrate(
       chapterHref: ch?.href ?? null,
       ...(a.path ? { path: a.path } : {}),
       quote: a.quote,
+      code: ch?.kind === "code",
       curatedAgainst: a.curated_against,
       chapterHash: ch?.contentHash ?? "",
       stale: ch ? a.curated_against !== ch.contentHash : false,

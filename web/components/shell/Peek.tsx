@@ -102,7 +102,11 @@ export default function Peek({
       </div>
       {c.reading && <div className="peek-reading">{c.reading}</div>}
       {c.anchor && (
-        <blockquote className="evidence-quote">“{c.anchor.quote}”</blockquote>
+        <blockquote
+          className={`evidence-quote${c.anchor.code ? " code" : ""}`}
+        >
+          {c.anchor.code ? c.anchor.quote : `“${c.anchor.quote}”`}
+        </blockquote>
       )}
       <div className="peek-footer">↵ opens · space closes</div>
     </div>

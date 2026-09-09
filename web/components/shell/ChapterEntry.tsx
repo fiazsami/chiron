@@ -39,10 +39,10 @@ export default function ChapterEntry({
       <header>
         <div className="entry-headline">
           <h1 className="entry-headword">{chapter.title}</h1>
-          <span className="entry-kind">
+          <span className="entry-meta">
             {chapter.groupLabel} · {chapter.number}
-            {chapter.kind === "code" ? " · code" : ""}
           </span>
+          {chapter.kind === "code" && <span className="entry-kind">code</span>}
         </div>
         {chapter.description && (
           <div className="entry-reading">{chapter.description}</div>
@@ -72,39 +72,61 @@ export default function ChapterEntry({
       </Section>
 
       <Section title="State">
-        <ul>
-          {modes.map((d) => {
-            const state = chapter.states[d] ?? "none";
-            const staleCount = chapter.staleAnchors[d] ?? 0;
-            return (
-              <li key={d} className="phrasing-row">
-                <span className={`state-dots`}>
-                  <i className={state} />
-                </span>{" "}
-                <span className="intent">
-                  {DIMENSION_LABELS[d as Dimension]} — {state}
-                  {staleCount > 0 && `, ${staleCount} stale anchor${staleCount === 1 ? "" : "s"}`}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        {stale.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            {stale.map((d) => (
-              <p key={d} className="repair-line">
-                {DIMENSION_LABELS[d as Dimension]} drifted — re-author via{" "}
-                <code>
-                  /translate {registerKey}/{chapter.id}
-                </code>{" "}
-                or review and run{" "}
-                <code>
-                  uv run python -m tools.lingua accept-drift {registerKey}/
-                  {chapter.id} --mode {d}
-                </code>
-              </p>
-            ))}
-          </div>
+        {modes.every((d) => chapter.states[d] === "ok") ? (
+          // Healthy state stays quiet: one compact line, detail on drift only.
+          <p className="phrasing-row">
+            <span className="state-dots">
+              {modes.map((d) => (
+                <i
+                  key={d}
+                  className="ok"
+                  title={`${DIMENSION_LABELS[d as Dimension]}: ok`}
+                />
+              ))}
+            </span>{" "}
+            <span className="intent">all ok</span>
+          </p>
+        ) : (
+          <>
+            <ul>
+              {modes.map((d) => {
+                const state = chapter.states[d] ?? "none";
+                const staleCount = chapter.staleAnchors[d] ?? 0;
+                return (
+                  <li key={d} className="phrasing-row">
+                    <span className="state-dots">
+                      <i
+                        className={state}
+                        title={`${DIMENSION_LABELS[d as Dimension]}: ${state}`}
+                      />
+                    </span>{" "}
+                    <span className="intent">
+                      {DIMENSION_LABELS[d as Dimension]} — {state}
+                      {staleCount > 0 &&
+                        `, ${staleCount} stale anchor${staleCount === 1 ? "" : "s"}`}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            {stale.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                {stale.map((d) => (
+                  <p key={d} className="repair-line">
+                    {DIMENSION_LABELS[d as Dimension]} drifted — re-author via{" "}
+                    <code>
+                      /translate {registerKey}/{chapter.id}
+                    </code>{" "}
+                    or review and run{" "}
+                    <code>
+                      uv run python -m tools.lingua accept-drift {registerKey}/
+                      {chapter.id} --mode {d}
+                    </code>
+                  </p>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </Section>
 
@@ -159,8 +181,8 @@ export default function ChapterEntry({
               const to = substrate.terms[e.to]?.term ?? e.to;
               return (
                 <li key={id} className="relation-line">
-                  <span className="edge-type">{e.type}</span>
-                  <span>
+                  <div>
+                    <span className="edge-type">{e.type}</span>{" "}
                     <Reference
                       href={e.href}
                       headword={`${from} → ${to}`}
@@ -168,8 +190,8 @@ export default function ChapterEntry({
                     >
                       {from} → {to}
                     </Reference>
-                    <span className="gloss">{e.gloss}</span>
-                  </span>
+                  </div>
+                  <div className="gloss">{e.gloss}</div>
                 </li>
               );
             })}

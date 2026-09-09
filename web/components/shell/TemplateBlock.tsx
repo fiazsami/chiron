@@ -10,19 +10,21 @@ export default function TemplateBlock({ template }: { template: string }) {
   const { copied } = useShell();
   const parts = template.split(/(\{[^}]*\})/);
   return (
-    <pre className="template-block">
-      <span className="copy-hint">{copied ? "copied" : "y copies"}</span>
-      <code>
-        {parts.map((part, i) =>
-          part.startsWith("{") && part.endsWith("}") ? (
-            <span key={i} className="slot">
-              {part}
-            </span>
-          ) : (
-            <Fragment key={i}>{part}</Fragment>
-          ),
-        )}
-      </code>
-    </pre>
+    <div className="template-wrap">
+      <div className="copy-hint">{copied ? "copied" : "y copies"}</div>
+      <pre className="template-block">
+        <code>
+          {parts.map((part, i) =>
+            part.startsWith("{") && part.endsWith("}") ? (
+              <span key={i} className="slot">
+                {part}
+              </span>
+            ) : (
+              <Fragment key={i}>{part}</Fragment>
+            ),
+          )}
+        </code>
+      </pre>
+    </div>
   );
 }
