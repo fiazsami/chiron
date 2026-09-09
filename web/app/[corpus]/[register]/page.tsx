@@ -38,9 +38,6 @@ export default async function RegisterPage({ params }: Params) {
 
   return (
     <>
-      <nav className="crumbs">
-        <Link href="/">&larr; All corpora</Link>
-      </nav>
       <header className="index-header">
         <h1>
           {corpus.title} <span className="muted">· {corpus.register}</span>

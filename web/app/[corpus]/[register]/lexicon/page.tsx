@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import LexiconList, { type LexiconRow } from "@/components/LexiconList";
 import { findCorpus, getManifest } from "@/lib/content";
@@ -47,11 +46,6 @@ export default async function LexiconPage({ params }: Params) {
 
   return (
     <>
-      <nav className="crumbs">
-        <Link href={`/${name}/${register}`}>
-          &larr; {corpus.title} · {register}
-        </Link>
-      </nav>
       <header className="index-header">
         <h1>Lexicon</h1>
         <p className="description">

@@ -1,46 +1,21 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import matter from "gray-matter";
+import {
+  DIMENSIONS,
+  DIMENSION_COUNT_KEYS,
+  type Dimension,
+  type DimensionState,
+} from "./dimensions";
+
+// Dimension types/constants live in lib/dimensions.ts (client-safe); this
+// module re-exports them so server code keeps a single import site.
+export * from "./dimensions";
 
 // Mounted corpora live beside web/ at the repo root; each corpus register
 // keeps its generated pages under corpora/<name>/<vN>/pages/ and its
 // extracted linguistic structure under corpora/<name>/<vN>/data/.
 export const CORPORA_DIR = path.resolve(process.cwd(), "../corpora");
-
-// The three shipped linguistic dimensions. "concept-relations" is the
-// manifest/data/pages/states KEY; its data file is relations.yaml and its
-// viewer route segment is /relations.
-export type Dimension = "lexicon" | "phrasebook" | "concept-relations";
-export type DimensionState = "ok" | "stale" | "none";
-
-export const DIMENSIONS: Dimension[] = [
-  "lexicon",
-  "phrasebook",
-  "concept-relations",
-];
-
-export const DIMENSION_LABELS: Record<Dimension, string> = {
-  lexicon: "Lexicon",
-  phrasebook: "Phrasebook",
-  "concept-relations": "Concept relations",
-};
-
-// URL segment under /[corpus]/[register]/ for each dimension's surface.
-export const DIMENSION_SEGMENTS: Record<Dimension, string> = {
-  lexicon: "lexicon",
-  phrasebook: "phrasebook",
-  "concept-relations": "relations",
-};
-
-// totals key per dimension, in the same order the pipeline reports them.
-export const DIMENSION_COUNT_KEYS: Record<
-  Dimension,
-  keyof ManifestCorpus["totals"]
-> = {
-  lexicon: "terms",
-  phrasebook: "phrases",
-  "concept-relations": "relations",
-};
 
 export interface ManifestGroup {
   id: string;

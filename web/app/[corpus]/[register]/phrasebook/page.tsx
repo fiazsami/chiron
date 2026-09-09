@@ -31,11 +31,6 @@ export default async function PhrasebookPage({ params }: Params) {
 
   return (
     <>
-      <nav className="crumbs">
-        <Link href={`/${name}/${register}`}>
-          &larr; {corpus.title} · {register}
-        </Link>
-      </nav>
       <header className="index-header">
         <h1>Phrasebook</h1>
         <p className="description">

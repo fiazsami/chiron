@@ -96,12 +96,6 @@ export default async function ChapterPage({ params }: Params) {
   // lexicon cross-links below the article.
   return (
     <>
-      <nav className="crumbs">
-        <Link href="/">&larr; All corpora</Link>
-        <Link className="crumb-register" href={`/${corpus}/${register}`}>
-          {corpus}/{register}
-        </Link>
-      </nav>
       <article
         className={`card chapter-body ${accentClass(manifest, corpus, register, group)}`}
       >

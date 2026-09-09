@@ -33,11 +33,6 @@ export default async function RelationsPage({ params }: Params) {
 
   return (
     <>
-      <nav className="crumbs">
-        <Link href={`/${name}/${register}`}>
-          &larr; {corpus.title} · {register}
-        </Link>
-      </nav>
       <header className="index-header">
         <h1>Concept relations</h1>
         <p className="description">

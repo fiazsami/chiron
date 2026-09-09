@@ -48,9 +48,6 @@ export default async function TermPage({ params }: Params) {
 
   return (
     <>
-      <nav className="crumbs">
-        <Link href={`/${name}/${register}/lexicon`}>&larr; Lexicon</Link>
-      </nav>
       <article className="card term-detail">
         <h1>
           {entry.term} <span className="mini-badge">{entry.kind}</span>
