@@ -1,12 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import matter from "gray-matter";
-import {
-  DIMENSIONS,
-  DIMENSION_COUNT_KEYS,
-  type Dimension,
-  type DimensionState,
-} from "./dimensions";
+import { type Dimension, type DimensionState } from "./dimensions";
 
 // Dimension types/constants live in lib/dimensions.ts (client-safe); this
 // module re-exports them so server code keeps a single import site.
@@ -95,60 +89,4 @@ export function findCorpus(
   return manifest.corpora.find(
     (c) => c.name === name && c.register === register,
   );
-}
-
-// "41 terms · 12 phrases · 19 relations" — only tracked dimensions appear.
-export function totalsLine(corpus: ManifestCorpus): string {
-  return DIMENSIONS.filter((d) => d in corpus.data)
-    .map((d) => {
-      const key = DIMENSION_COUNT_KEYS[d];
-      return `${corpus.totals[key] ?? 0} ${key}`;
-    })
-    .join(" · ");
-}
-
-// Resolve a register-local chapter id ("<group>/<NN>") — the key used by
-// anchors and defined_in — back to its manifest entry.
-export function chapterByLocalId(
-  manifest: Manifest,
-  corpus: string,
-  register: string,
-  localId: string,
-): ManifestChapter | undefined {
-  return manifest.chapters.find(
-    (c) =>
-      c.corpus === corpus &&
-      c.register === register &&
-      `${c.group}/${c.number}` === localId,
-  );
-}
-
-export function chapterHref(chapter: ManifestChapter): string {
-  return `/${chapter.corpus}/${chapter.register}/${chapter.group}/${chapter.slug}`;
-}
-
-// Accent colors cycle by the group's position within its corpus, so any
-// number of corpora/groups gets a stable color without per-name CSS.
-export const ACCENT_COUNT = 5;
-
-export function accentClass(
-  manifest: Manifest,
-  corpus: string,
-  register: string,
-  group: string,
-): string {
-  const s = findCorpus(manifest, corpus, register);
-  const i = s?.groups.findIndex((g) => g.id === group) ?? -1;
-  return `accent-${i >= 0 ? i % ACCENT_COUNT : 0}`;
-}
-
-export interface Chapter {
-  frontmatter: Record<string, unknown>;
-  body: string;
-}
-
-export async function getChapter(entry: ManifestChapter): Promise<Chapter> {
-  const raw = await fs.readFile(path.join(CORPORA_DIR, entry.page), "utf8");
-  const { data, content } = matter(raw);
-  return { frontmatter: data, body: content };
 }

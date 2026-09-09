@@ -2,75 +2,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
 import { CORPORA_DIR, type Dimension, type ManifestCorpus } from "./content";
+import type { Lexicon, Phrasebook, RelationEdge } from "./lingua-types";
 
-// TS mirrors of the per-register data YAML shapes owned by
-// tools/lingua/dimensions/{lexicon,phrasebook,relations}.py. A missing data
-// file (or an untracked mode, which has no data key at all) reads as empty.
+// Server-side readers for the per-register data YAMLs. A missing data file
+// (or an untracked mode, which has no data key at all) reads as empty. The
+// type mirrors live in lingua-types.ts (client-safe) and are re-exported
+// here so server modules keep a single import site.
 
-export interface Anchor {
-  chapter: string; // register-local "<group>/<NN>"
-  path?: string; // source-relative file; required for code chapters
-  quote: string; // verbatim (whitespace-normalized) quote from the source
-  curated_against: string; // 12-hex content hash the quote was pinned to
-}
-
-export type TermKind =
-  | "concept"
-  | "name"
-  | "identifier"
-  | "command"
-  | "file"
-  | "value";
-
-export interface LexiconEntry {
-  term: string;
-  kind: TermKind;
-  definition: string;
-  aliases?: string[];
-  defined_in: string; // register-local chapter id
-  anchors: Anchor[];
-}
-
-export type Lexicon = Record<string, LexiconEntry>;
-
-export interface Phrase {
-  phrase: string;
-  intent: string;
-  template?: string;
-  terms: string[]; // lexicon slugs this phrasing leans on
-  anchors: Anchor[];
-}
-
-export type Phrasebook = Record<string, Phrase>;
-
-export type RelationType =
-  | "is-a"
-  | "part-of"
-  | "uses"
-  | "feeds"
-  | "configures"
-  | "contrasts-with"
-  | "implements"
-  | "precedes";
-
-export const RELATION_TYPES: RelationType[] = [
-  "is-a",
-  "part-of",
-  "uses",
-  "feeds",
-  "configures",
-  "contrasts-with",
-  "implements",
-  "precedes",
-];
-
-export interface RelationEdge {
-  from: string;
-  to: string;
-  type: RelationType;
-  gloss: string;
-  anchors: Anchor[];
-}
+export * from "./lingua-types";
 
 export function dataPath(
   corpus: ManifestCorpus,

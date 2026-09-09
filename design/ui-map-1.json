@@ -1,0 +1,1021 @@
+{
+  "version": 1,
+  "title": "chiron viewer 1 — proposed UI map, keyboard-first, optimized for acquiring the substrate",
+  "purpose": "Machine-readable target for the next viewer. Same shape as design/ui-map.json (surfaces, partitioning, components, textRoles, theme) so the two can be diffed, but every binding points at design/datamodel.json (entity.attribute) rather than at current web/ types. Non-inclusive: attributes the design does not surface are listed under notSurfaced with a reason. Where a surface needs data the pipeline does not yet expose, the entry carries a 'dependency'.",
+  "basis": {
+    "schema": "design/datamodel.json v1 (entities, contentKinds, caps, invariants)",
+    "diffAgainst": "design/ui-map.json v1 (as-built)",
+    "threeQuestions": {
+      "lexicon": "What is this called here?",
+      "phrasebook": "How do I say it when instructing an agent?",
+      "concept-relations": "How do the names relate?"
+    }
+  },
+  "principles": [
+    "Entries are the unit of reading. Term, phrase, edge and chapter each get a full-width reading surface; the modal-only card is gone. The generated chapter markdown is replaced by a structured chapter entry built from the same substrate.",
+    "Dimensions are first-class navigation (keys 1-4), because the substrate answers three questions and the learner should be able to ask each one directly.",
+    "Type is chosen from contentKind, never from element name. One reconciled scale (16px base, ratio 1.2) across chrome and entry; the article/chrome split disappears with the vendored stylesheet.",
+    "Evidence is ink, not color. Anchor quotes are the only verbatim content; they are set in the reading face on the reading surface with a neutral rule and a provenance line. Color is reserved for two meanings: pine = you can act on this; amber = something drifted.",
+    "Keyboard focus is always visible and never ambiguous: exactly one pane owns focus (top-edge bar), exactly one row or reference is the cursor (ring), and selection (the open entry) is a background, so cursor and selection can differ.",
+    "Every cross-reference is reachable in two keystrokes from anywhere in an entry (f + hint letters), so following a thought never requires a mouse or a long tab walk.",
+    "Nothing renders below 4.5:1 text contrast in either theme; the pairs table is the allowed set, not a suggestion.",
+    "No uppercase labels. Hierarchy comes from size, weight, and color step, not from transform; headwords keep the corpus's own casing (datamodel: 'the corpus's spelling wins')."
+  ],
+  "stack": {
+    "framework": "unchanged (Next.js App Router); routes below replace the chapter-only routing",
+    "styling": "global CSS custom properties; drop vendored github-markdown-css (no markdown surface remains)",
+    "webfonts": "one self-hosted variable serif is recommended (Source Serif 4 or equivalent); the map degrades to Iowan Old Style / Georgia without it. Sans and mono stay system.",
+    "themeSwitch": "[data-theme=light|dark] on <html> plus color-scheme; defaults to prefers-color-scheme; toggled by key t and persisted",
+    "inlineStyles": "pane widths only, as today"
+  },
+  "layout": {
+    "shell": "rail (232px) | index (336px) | entry (fluid, reading measure 66ch) with a trail bar pinned above the entry pane. Panes are resizable; widths persisted. One pane owns keyboard focus at a time (2px --pine bar on its top edge).",
+    "trail": "The dive stack made visible: a horizontal breadcrumb of entries visited by following cross-references (cap 16, as today). Backspace/u pops. Rendered above the entry, not inside it, so the entry's reading measure is never interrupted.",
+    "entryMeasure": "max-width 66ch of the reading face at 16px (~640px); padding 48px 56px 96px; sections separated by 32px, not by rules",
+    "responsive": {
+      "≤1100px": "rail collapses to a 56px icon strip (dimension glyphs 1-4 + drift dot); index stays",
+      "≤880px": "index and rail become overlays (as today); entry padding 32px 20px; type scale steps down one notch for the entry headword only (28→23); reading sizes never change"
+    }
+  },
+  "keymap": {
+    "note": "Global unless scoped. Arrow keys mirror h/j/k/l. The as-built IJKL/EDAF set can be kept as an alternate binding table.",
+    "panes": {
+      "h / ←": "focus previous pane",
+      "l / →": "focus next pane"
+    },
+    "within-pane": {
+      "j / ↓": "next row or reference",
+      "k / ↑": "previous",
+      "g g": "top",
+      "G": "bottom",
+      "enter": "open (index) / follow (entry reference)"
+    },
+    "dimensions": {
+      "1": "Lexicon",
+      "2": "Phrasebook",
+      "3": "Concept relations",
+      "4": "Chapters",
+      "0": "Scope (corpus/register)"
+    },
+    "entry": {
+      "f": "hint mode: label every cross-reference and anchor with 1-2 letters; type the letters to follow (esc cancels)",
+      "space": "peek the cursor reference without leaving",
+      "n / p": "next / previous cross-reference",
+      "e": "next anchor (evidence) in this entry",
+      "] / [": "next / previous entry in the index without moving focus",
+      "o": "open chapter.source_url (or primary_path) in a new tab",
+      "y": "copy phrase.template (phrase entry) or term.term to clipboard"
+    },
+    "trail": {
+      "backspace / u": "back",
+      "shift+u": "forward",
+      "shift+backspace": "clear trail to the current entry"
+    },
+    "search": {
+      "/": "filter the index (matches headword, aliases, slug)",
+      "⌘K / ctrl+K": "jump anywhere (matches headword, aliases, slug, chapter title)",
+      "esc": "clear filter / close overlay"
+    },
+    "modes": {
+      "d": "drill the current index scope",
+      "t": "toggle theme",
+      "?": "help overlay with this table"
+    }
+  },
+  "surfaces": [
+    {
+      "id": "scope",
+      "kind": "route",
+      "route": "/",
+      "displays": [
+        "corpus.title with corpus.name (identifier) and corpus.source_kind",
+        "register.name + register.label per register, totals per implemented dimension using dimension.countNoun",
+        "register-level state (worst-of-chapters) as one drift dot",
+        "corpus.checkout and corpus.urls as provenance (previously typed, never rendered)"
+      ],
+      "keyboard": "j/k rows, enter opens the register into the shell; 0 returns here from anywhere",
+      "notes": "Replaces corpora-index and register-hub. The hub's mode badges move into the rail."
+    },
+    {
+      "id": "rail",
+      "kind": "persistent-pane",
+      "displays": [
+        "wordmark",
+        "scope line: corpus.title › register.name (register.label on hover/focus)",
+        "dimension switcher: one row per register.modes entry; implemented modes show dimension.label + total (countNoun) + key number; recorded modes show mode.slug with a dashed marker and no key",
+        "Chapters row (key 4) with chapter count",
+        "drift summary: count of stale (chapter, dimension) pairs; enter opens the chapters index filtered to stale"
+      ],
+      "keyboard": "1-4 switch dimension from anywhere; the rail is also a focusable pane (j/k, enter)",
+      "notes": "Identity and wayfinding only. Groups are no longer in the rail — they are section headers inside the chapters index."
+    },
+    {
+      "id": "index",
+      "kind": "persistent-pane",
+      "displays": [
+        "lexicon: term.term + term.kind badge + one-line term.definition (truncated at 90 chars) + aliases as a muted second line when present; sorted alphabetically, or grouped by term.kind or by chapter.defines via the sort toggle",
+        "phrasebook: phrase.phrase + phrase.intent (one line); grouped by first term in phrase.terms or alphabetically",
+        "concept-relations: grouped by relationEdge.type (section header = type + count); row = from → to with gloss",
+        "chapters: grouped by group.label in register order; row = chapter.number + chapter.title + chapter.kind mark + per-dimension state dots",
+        "filter field (/) with live count 'n of N'"
+      ],
+      "keyboard": "j/k move the cursor, enter opens into entry, / filters, s cycles sort/grouping, esc clears filter",
+      "notes": "Identity plus one line of meaning per row: enough to choose without opening."
+    },
+    {
+      "id": "entry-term",
+      "kind": "route",
+      "route": "/[corpus]/[register]/lexicon/[slug]",
+      "displays": [
+        "term.term as headword with term.kind badge and term.slug",
+        "term.definition as the reading block",
+        "term.aliases as a plain run-in list ('Also written: …')",
+        "Defined in: chapter.title (cross-reference) via term.defined_in",
+        "Evidence: every anchor (1-8, no viewer cap): anchor.quote with provenance (chapter.title, anchor.path for code chapters) and a drift mark when anchor.curated_against ≠ chapter.content_hash",
+        "Phrasings: phrase.phrase + phrase.intent for each phrase whose terms include this slug (cross-references)",
+        "Relations: outgoing and incoming relationEdge lists in two columns, edge type as the column key, gloss inline (cross-references to the other endpoint)",
+        "Mentioned in: derived chapter list"
+      ],
+      "keyboard": "f hint mode; n/p cycle references; e cycles anchors; space peeks; enter follows; y copies term.term"
+    },
+    {
+      "id": "entry-phrase",
+      "kind": "route",
+      "route": "/[corpus]/[register]/phrasebook/[slug]",
+      "displays": [
+        "phrase.phrase as headword",
+        "phrase.intent as the reading block (one line, set at reading size)",
+        "phrase.template as a code block with {slots} highlighted; copy affordance (y)",
+        "Terms used: phrase.terms resolved to term.term chips with term.kind (cross-references)",
+        "Evidence: anchors as in entry-term"
+      ],
+      "keyboard": "as entry-term; y copies the template"
+    },
+    {
+      "id": "entry-edge",
+      "kind": "route",
+      "route": "/[corpus]/[register]/relations/[from]/[type]/[to]",
+      "displays": [
+        "headword line: from-term — type → to-term (both endpoints cross-references; type as label)",
+        "relationEdge.gloss as the reading block",
+        "type meaning from the closed relationType enum ('feeds: output of one becomes input of the other')",
+        "Evidence: anchors",
+        "Neighborhood: other edges sharing either endpoint, grouped by type"
+      ],
+      "keyboard": "as entry-term; [ ] step through edges of the same type"
+    },
+    {
+      "id": "entry-chapter",
+      "kind": "route",
+      "route": "/[corpus]/[register]/chapters/[group]/[number]",
+      "displays": [
+        "chapter.title with chapter.number and group.label; chapter.description as standfirst; chapter.kind mark",
+        "provenance block: chapter.unit_paths (primary_path first), chapter.source_url, chapter.content_hash",
+        "state per implemented dimension with stale anchor counts and the repair command",
+        "Defines: terms with definition first line",
+        "Mentions: terms anchored here but defined elsewhere",
+        "Phrasings grounded here",
+        "Relations anchored here (dependency: manifest must carry edges per chapter, not just a count)"
+      ],
+      "keyboard": "as entry-term; o opens the source",
+      "dependency": "per-chapter edge list; anchor.path and curated_against exposed to the viewer",
+      "notes": "Replaces the generated-markdown article. Same information, typed per contentKind instead of flattened into bullets."
+    },
+    {
+      "id": "peek",
+      "kind": "overlay",
+      "displays": [
+        "compact preview of the cursor cross-reference: headword + kind, first 2 lines of definition/intent/gloss, first anchor quote, 'enter to open'"
+      ],
+      "keyboard": "space opens, space/esc closes, enter promotes to a real follow",
+      "notes": "Anchored beside the reference; never covers the reading measure. Replaces the nested-modal dive for quick checks."
+    },
+    {
+      "id": "jump",
+      "kind": "overlay",
+      "displays": [
+        "single input; rows = kind glyph + headword + right detail (dimension · register); matches headword, aliases, slug, chapter title; aliases shown as the reason for the match"
+      ],
+      "keyboard": "⌘K opens; j/k or arrows; enter opens; esc closes",
+      "notes": "Fixes the alias gap: aliases are search keys."
+    },
+    {
+      "id": "drill",
+      "kind": "overlay",
+      "route": "/[corpus]/[register]/drill",
+      "displays": [
+        "one prompt at a time from the current index scope: show phrase.intent → recall phrase.phrase; show term.definition → recall term.term; show from + to → recall relationEdge.type",
+        "reveal shows the answer with its first anchor as evidence"
+      ],
+      "keyboard": "d starts; space reveals; j = got it, k = again; esc ends",
+      "dependency": "no persistence: datamodel notes quiz/progress state is unmodeled; the drill is stateless per session",
+      "notes": "Calibration is the learner's stated activity; this is the only surface that asks rather than shows."
+    },
+    {
+      "id": "help",
+      "kind": "overlay",
+      "displays": [
+        "the keymap as a two-column table"
+      ],
+      "keyboard": "? toggles"
+    }
+  ],
+  "partitioning": {
+    "description": "How the substrate is sliced across surfaces in this design",
+    "slices": {
+      "scope": "corpus + register identity, totals, provenance, worst-of state",
+      "rail": "register.modes → dimension rows with totals; chapter count; stale count",
+      "index": "identity + one line of meaning per entry (headword, kind/type, definition|intent|gloss first line, aliases); state dots on chapters",
+      "entry-*": "the full entry: every attribute the datamodel marks required, all anchors (1-8), all inverse relationships (phrasings, edges, mentionedIn)",
+      "peek": "headword + kind + first two lines + first anchor",
+      "jump": "identity + aliases as match keys",
+      "drill": "one attribute pair per prompt, answer with one anchor"
+    },
+    "notSurfaced": {
+      "register.notes": "authoring steering text; not learner-facing",
+      "dimension.dataFilename / methodologyDoc": "tooling provenance; linked from help only",
+      "mode.status for implemented modes": "implied by having a key number; only recorded modes are marked",
+      "corpus.origin": "operational; scope shows checkout and urls instead",
+      "cross-register views": "no representation in the data model (datamodel modelingNotes)"
+    }
+  },
+  "components": [
+    {
+      "name": "Shell",
+      "renders": "rail | index | entry with trail bar; owns pane focus, keymap, theme toggle, overlays"
+    },
+    {
+      "name": "Rail",
+      "renders": "wordmark, scope line, dimension switcher, chapters row, drift summary"
+    },
+    {
+      "name": "Index",
+      "renders": "filter field, section headers, rows per dimension shape, cursor + selection states"
+    },
+    {
+      "name": "Trail",
+      "renders": "breadcrumb of visited entries with back/forward"
+    },
+    {
+      "name": "Entry",
+      "renders": "one of TermEntry / PhraseEntry / EdgeEntry / ChapterEntry; shared Evidence, Reference, Section primitives"
+    },
+    {
+      "name": "Evidence",
+      "renders": "anchor.quote with provenance and drift mark; hanging quotation marks"
+    },
+    {
+      "name": "Reference",
+      "renders": "cross-reference span with cursor ring, hint label slot, peek trigger"
+    },
+    {
+      "name": "Peek / Jump / Drill / Help",
+      "renders": "overlays; Jump indexes aliases"
+    }
+  ],
+  "textRoles": [
+    {
+      "id": "wordmark",
+      "area": "rail",
+      "binds": "product name",
+      "contentKind": "headword",
+      "spec": {
+        "face": "serif",
+        "size": 19,
+        "weight": 600,
+        "color": "--pine-dark"
+      }
+    },
+    {
+      "id": "scope-line",
+      "area": "rail",
+      "binds": "corpus.title › register.name",
+      "contentKind": "headword+identifier",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "weight": 500,
+        "color": "--ink-2",
+        "registerName": "mono 12 --muted"
+      },
+      "keyboard": "0 opens scope"
+    },
+    {
+      "id": "dimension-row",
+      "area": "rail",
+      "binds": "dimension.label + total (dimension.countNoun) | mode.slug when recorded",
+      "contentKind": "label+count",
+      "spec": {
+        "face": "sans",
+        "size": 15,
+        "weight": 500,
+        "lineHeight": 1.4,
+        "color": "--ink",
+        "active": "600 + --sel bg + 3px left --dim-hue",
+        "count": "13 tabular --muted",
+        "keycap": "11 mono in --edge box, right-aligned",
+        "recorded": "--muted, dashed left rule, no keycap"
+      },
+      "keyboard": "1-4"
+    },
+    {
+      "id": "drift-summary",
+      "area": "rail",
+      "binds": "count of state.value = stale",
+      "contentKind": "count+label",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "color": "--amber",
+        "dot": "8px --amber",
+        "zero": "--muted, no dot"
+      }
+    },
+    {
+      "id": "index-filter",
+      "area": "index",
+      "binds": "user query",
+      "contentKind": "prose",
+      "spec": {
+        "face": "sans",
+        "size": 15,
+        "height": 36,
+        "bg": "--inset",
+        "placeholder": "--muted",
+        "liveCount": "13 tabular --muted, right"
+      },
+      "keyboard": "/"
+    },
+    {
+      "id": "index-section",
+      "area": "index",
+      "binds": "group.label | relationEdge.type | term.kind (by grouping)",
+      "contentKind": "label",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "weight": 600,
+        "color": "--ink-2",
+        "tracking": ".01em",
+        "transform": "none",
+        "count": "13 tabular --muted",
+        "sticky": true
+      }
+    },
+    {
+      "id": "index-row-headword",
+      "area": "index",
+      "binds": "term.term | phrase.phrase | chapter.title | relationEdge.from → to",
+      "contentKind": "headword",
+      "spec": {
+        "face": "serif",
+        "size": 15,
+        "weight": 600,
+        "lineHeight": 1.3,
+        "clamp": 2,
+        "color": "--ink",
+        "selected": "--sel bg",
+        "cursor": "2px ring --pine inset"
+      }
+    },
+    {
+      "id": "index-row-line",
+      "area": "index",
+      "binds": "term.definition | phrase.intent | relationEdge.gloss (first line, 90 chars)",
+      "contentKind": "prose",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "lineHeight": 1.4,
+        "color": "--ink-2",
+        "clamp": 1
+      }
+    },
+    {
+      "id": "index-row-aliases",
+      "area": "index",
+      "binds": "term.aliases",
+      "contentKind": "headword",
+      "spec": {
+        "face": "sans",
+        "size": 12,
+        "color": "--muted",
+        "prefix": "also"
+      }
+    },
+    {
+      "id": "index-row-kind",
+      "area": "index",
+      "binds": "term.kind | chapter.kind",
+      "contentKind": "label",
+      "spec": {
+        "face": "sans",
+        "size": 11,
+        "weight": 500,
+        "color": "--muted",
+        "form": "plain text after headword, no pill"
+      }
+    },
+    {
+      "id": "index-row-number",
+      "area": "index",
+      "binds": "chapter.number",
+      "contentKind": "count",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "figures": "tabular-nums",
+        "color": "--muted",
+        "width": "2.5ch, right-aligned"
+      }
+    },
+    {
+      "id": "state-dots",
+      "area": "index+entry+scope",
+      "binds": "state.value per implemented dimension",
+      "contentKind": "label",
+      "spec": {
+        "size": "7px circles, 3 in a row in registry order",
+        "ok": "--pine",
+        "stale": "--amber",
+        "none": "--edge",
+        "tooltip": "dimension.label + state"
+      }
+    },
+    {
+      "id": "trail-crumb",
+      "area": "trail",
+      "binds": "visited entry headwords",
+      "contentKind": "headword",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "color": "--ink-2",
+        "current": "--ink 600",
+        "separator": "› in --muted",
+        "overflow": "collapses middle crumbs to '…' beyond 6"
+      },
+      "keyboard": "backspace / u"
+    },
+    {
+      "id": "entry-headword",
+      "area": "entry",
+      "binds": "term.term | phrase.phrase | chapter.title",
+      "contentKind": "headword",
+      "spec": {
+        "face": "serif",
+        "size": 28,
+        "weight": 600,
+        "lineHeight": 1.15,
+        "color": "--ink",
+        "tracking": "-.01em",
+        "transform": "none (corpus casing)",
+        "maxWidth": "66ch"
+      }
+    },
+    {
+      "id": "entry-headword-edge",
+      "area": "entry",
+      "binds": "relationEdge.from — type → to",
+      "contentKind": "headword+label",
+      "spec": {
+        "face": "serif",
+        "size": 23,
+        "weight": 600,
+        "endpoints": "cross-references",
+        "type": "sans 15 500 --blue, arrow glyph →, nowrap"
+      }
+    },
+    {
+      "id": "entry-kind",
+      "area": "entry",
+      "binds": "term.kind | chapter.kind",
+      "contentKind": "label",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "weight": 500,
+        "color": "--dim-hue on --dim-tint",
+        "shape": "4px radius, 2px 8px",
+        "placement": "baseline-aligned after headword"
+      }
+    },
+    {
+      "id": "entry-slug",
+      "area": "entry",
+      "binds": "term.slug | phrase.slug | chapter.slug",
+      "contentKind": "identifier",
+      "spec": {
+        "face": "mono",
+        "size": 13,
+        "color": "--muted",
+        "nowrap": true,
+        "placement": "same line as kind, right of it"
+      }
+    },
+    {
+      "id": "entry-reading",
+      "area": "entry",
+      "binds": "term.definition | phrase.intent | relationEdge.gloss | chapter.description",
+      "contentKind": "prose",
+      "spec": {
+        "face": "serif",
+        "size": 16,
+        "lineHeight": 1.55,
+        "color": "--ink",
+        "measure": "66ch",
+        "paragraphGap": "12px",
+        "note": "the only block that may run multi-line at reading size; definition max 400 chars"
+      }
+    },
+    {
+      "id": "entry-aliases",
+      "area": "entry",
+      "binds": "term.aliases",
+      "contentKind": "headword",
+      "spec": {
+        "face": "serif",
+        "size": 16,
+        "style": "italic",
+        "color": "--ink-2",
+        "pattern": "'Also written' + comma list, run-in after the reading block"
+      }
+    },
+    {
+      "id": "entry-section",
+      "area": "entry",
+      "binds": "section names: Defined in, Evidence, Phrasings, Relations, Mentioned in, Terms used, Template, Provenance",
+      "contentKind": "label",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "weight": 600,
+        "color": "--ink-2",
+        "transform": "none",
+        "spacingAbove": 32,
+        "spacingBelow": 12,
+        "count": "tabular --muted after the name"
+      }
+    },
+    {
+      "id": "evidence-quote",
+      "area": "entry",
+      "binds": "anchor.quote",
+      "contentKind": "quote",
+      "spec": {
+        "face": "serif",
+        "size": 16,
+        "lineHeight": 1.5,
+        "color": "--ink",
+        "rule": "2px --edge-strong left",
+        "hangingPunct": "opening quote hangs into the gutter",
+        "bg": "none",
+        "note": "reads as source text, not as a callout; the only verbatim block"
+      }
+    },
+    {
+      "id": "evidence-provenance",
+      "area": "entry",
+      "binds": "anchor.chapter → chapter.title (+ anchor.path for code)",
+      "contentKind": "label+identifier",
+      "spec": {
+        "face": "sans",
+        "size": 13,
+        "color": "--muted",
+        "path": "mono 12",
+        "placement": "below the quote, indented to the rule",
+        "chapter": "cross-reference"
+      }
+    },
+    {
+      "id": "evidence-drift",
+      "area": "entry",
+      "binds": "anchor.curated_against ≠ chapter.content_hash",
+      "contentKind": "label",
+      "spec": {
+        "face": "sans",
+        "size": 12,
+        "weight": 500,
+        "color": "--amber",
+        "mark": "6px --amber dot before the provenance line + 'pinned to 3f9a2c1d…, chapter now 7b02e4aa…'",
+        "rule": "left rule turns --amber for that quote only"
+      },
+      "dependency": "curated_against and content_hash exposed per anchor"
+    },
+    {
+      "id": "reference",
+      "area": "entry",
+      "binds": "any cross-reference to term / phrase / edge / chapter",
+      "contentKind": "headword",
+      "spec": {
+        "face": "inherit",
+        "color": "--pine",
+        "underline": "1px --pine-tint, solid --pine on cursor/hover",
+        "cursor": "2px --pine ring, 2px offset, no layout shift",
+        "hintLabel": "mono 11 --ink on --pine-tint, 2px radius, placed at the reference's start"
+      },
+      "keyboard": "n/p, f, space, enter"
+    },
+    {
+      "id": "phrasing-row",
+      "area": "entry",
+      "binds": "phrase.phrase + phrase.intent",
+      "contentKind": "headword+prose",
+      "spec": {
+        "headword": "serif 16 600 cross-reference",
+        "intent": "sans 14 --ink-2 on the same line after 4px",
+        "rowGap": 8
+      }
+    },
+    {
+      "id": "relation-column",
+      "area": "entry",
+      "binds": "relationEdge grouped as outgoing / incoming",
+      "contentKind": "label+headword+prose",
+      "spec": {
+        "columnHead": "sans 13 600 --ink-2 ('this → others', 'others → this')",
+        "type": "sans 13 500 --blue, right-aligned in a 12ch column",
+        "endpoint": "serif 16 600 cross-reference",
+        "gloss": "sans 14 --ink-2, clamp 2"
+      }
+    },
+    {
+      "id": "template-block",
+      "area": "entry",
+      "binds": "phrase.template",
+      "contentKind": "code",
+      "spec": {
+        "face": "mono",
+        "size": 14,
+        "lineHeight": 1.5,
+        "bg": "--inset",
+        "padding": "12px 16px",
+        "radius": 4,
+        "slots": "{…} in --pine 600",
+        "copyHint": "'y copies' in 11 --muted at top right"
+      },
+      "keyboard": "y"
+    },
+    {
+      "id": "term-chip",
+      "area": "entry",
+      "binds": "phrase.terms → term.term + term.kind",
+      "contentKind": "headword+label",
+      "spec": {
+        "face": "serif",
+        "size": 15,
+        "weight": 600,
+        "kind": "sans 12 --muted after",
+        "form": "cross-reference, no pill; wrapped in a comma list"
+      }
+    },
+    {
+      "id": "provenance-block",
+      "area": "entry",
+      "binds": "chapter.unit_paths, primary_path, source_url, content_hash",
+      "contentKind": "identifier",
+      "spec": {
+        "face": "mono",
+        "size": 13,
+        "lineHeight": 1.6,
+        "color": "--ink-2",
+        "bg": "none",
+        "hash": "--muted",
+        "link": "--pine underline"
+      },
+      "keyboard": "o opens source_url"
+    },
+    {
+      "id": "repair-line",
+      "area": "entry",
+      "binds": "stale state + repair command",
+      "contentKind": "prose+code",
+      "spec": {
+        "face": "sans",
+        "size": 14,
+        "color": "--amber",
+        "bg": "--amber-tint",
+        "rule": "3px --amber left",
+        "code": "mono 13 inline",
+        "note": "the only amber block; sans, so it can never be confused with evidence"
+      }
+    },
+    {
+      "id": "count-inline",
+      "area": "rail+index+entry",
+      "binds": "totals, chapter.number, section counts",
+      "contentKind": "count",
+      "spec": {
+        "face": "sans",
+        "figures": "tabular-nums",
+        "size": "13 (15 in rail)",
+        "color": "--muted"
+      }
+    },
+    {
+      "id": "big-numeral",
+      "area": "scope",
+      "binds": "register totals per dimension",
+      "contentKind": "count",
+      "spec": {
+        "face": "serif",
+        "size": 28,
+        "weight": 500,
+        "figures": "tabular-nums",
+        "color": "--ink",
+        "label": "sans 13 --muted below (dimension.countNoun)"
+      }
+    },
+    {
+      "id": "peek-body",
+      "area": "peek",
+      "binds": "headword + kind + reading first 2 lines + first anchor",
+      "contentKind": "headword+label+prose+quote",
+      "spec": {
+        "headword": "serif 19 600",
+        "reading": "serif 15 1.5 clamp 2",
+        "quote": "serif 14 1.45 with 2px rule",
+        "footer": "11 --muted 'enter opens'",
+        "width": "min(420px, 40vw)"
+      }
+    },
+    {
+      "id": "jump-input",
+      "area": "jump",
+      "binds": "user query",
+      "contentKind": "prose",
+      "spec": {
+        "face": "sans",
+        "size": 16,
+        "height": 44,
+        "placeholder": "Term, phrasing, relation or chapter…"
+      }
+    },
+    {
+      "id": "jump-row",
+      "area": "jump",
+      "binds": "headword + kind glyph + detail (dimension · register) + matched alias",
+      "contentKind": "headword+label",
+      "spec": {
+        "glyph": "14 --dim-hue: ◇ term ❝ phrase ⇢ relation ¶ chapter",
+        "headword": "serif 15 600",
+        "detail": "sans 12 --muted right",
+        "alias": "sans 12 --ink-2 'also: …' when the match was an alias"
+      }
+    },
+    {
+      "id": "keycap",
+      "area": "rail+help+overlays",
+      "binds": "key legends",
+      "contentKind": "label",
+      "spec": {
+        "face": "mono",
+        "size": 11,
+        "box": "1px --edge, 3px radius, 1px 5px, --paper bg",
+        "color": "--ink-2"
+      }
+    },
+    {
+      "id": "drill-prompt",
+      "area": "drill",
+      "binds": "phrase.intent | term.definition | from + to",
+      "contentKind": "prose+headword",
+      "spec": {
+        "face": "serif",
+        "size": 23,
+        "lineHeight": 1.35,
+        "color": "--ink",
+        "measure": "44ch",
+        "answer": "serif 28 600 --pine-dark on reveal",
+        "evidence": "evidence-quote at 15",
+        "verdictKeys": "keycaps j got it · k again"
+      }
+    },
+    {
+      "id": "empty-state",
+      "area": "scope+index",
+      "binds": "onboarding and zero results",
+      "contentKind": "prose+code",
+      "spec": {
+        "face": "sans",
+        "size": 15,
+        "color": "--ink-2",
+        "code": "mono 13 inline on --inset",
+        "tone": "one sentence of what to do next"
+      }
+    }
+  ],
+  "theme": {
+    "fonts": {
+      "--serif": "\"Source Serif 4\", \"Iowan Old Style\", Georgia, serif",
+      "--sans": "system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "--mono": "ui-monospace, \"SF Mono\", Menlo, Consolas, monospace",
+      "webfont": "Source Serif 4 variable (opsz 8-60, wght 400-700), self-hosted, font-display: swap; used with opsz auto so small headwords in the index render at the text optical size and entry headwords at display"
+    },
+    "roleOfFaces": {
+      "serif": "what the corpus says: headwords, definitions, intents, glosses, quotes, drill prompts. Everything a learner reads to learn.",
+      "sans": "what the viewer says: labels, counts, sections, meta, keys, status. Everything a learner reads to navigate.",
+      "mono": "what the machine says: slugs, paths, hashes, templates, keycaps."
+    },
+    "scale": {
+      "base": 16,
+      "ratio": 1.2,
+      "steps": {
+        "xs": 11,
+        "sm": 13,
+        "md": 15,
+        "base": 16,
+        "lg": 19,
+        "xl": 23,
+        "xxl": 28
+      },
+      "lineHeights": {
+        "prose": 1.55,
+        "quote": 1.5,
+        "chrome": 1.4,
+        "headword": 1.15,
+        "code": 1.5
+      },
+      "note": "one scale for the whole viewer; the chrome/article split is gone"
+    },
+    "contentKindStyles": {
+      "prose": "serif base/1.55, --ink, measure 66ch; index and peek use serif or sans at sm/md with clamp",
+      "headword": "serif 600 at xxl (entry), md (index/chips), base (inline); never transformed; hyphenation off",
+      "label": "sans 500-600 at sm, --ink-2 or --muted, sentence case, tracking ≤ .01em; badges only for term.kind and chapter.kind",
+      "identifier": "mono at sm, --muted or --ink-2, white-space nowrap, no background",
+      "code": "mono at 14 in a block on --inset with 4px radius; slots in --pine",
+      "quote": "serif base/1.5, --ink, 2px --edge-strong left rule, hanging opening quote, provenance line below; no tint; rule turns --amber when the anchor is stale",
+      "count": "sans tabular-nums at sm --muted; serif 500 at xxl for scope numerals"
+    },
+    "spacing": {
+      "unit": 4,
+      "steps": [
+        4,
+        8,
+        12,
+        16,
+        24,
+        32,
+        48,
+        64
+      ],
+      "rail": "16px padding, rows 32px high",
+      "index": "rows 10px 16px, sections 24px above",
+      "entry": "48px 56px 96px; sections 32px apart; evidence quotes 16px apart",
+      "overlays": "20px padding, 12px gap"
+    },
+    "tokens": {
+      "light": {
+        "--bg-rail": "#eeefee",
+        "--bg-index": "#f7f8f7",
+        "--paper": "#ffffff",
+        "--inset": "#eef1ef",
+        "--well": "#f4f6f5",
+        "--edge": "#d7dad8",
+        "--edge-soft": "#e6e8e6",
+        "--edge-strong": "#a9aeab",
+        "--ink": "#1b1f1d",
+        "--ink-2": "#454b48",
+        "--muted": "#626864",
+        "--sel": "#e2ebe6",
+        "--hover": "rgba(27,31,29,.05)",
+        "--pine": "#1f5d4c",
+        "--pine-dark": "#174538",
+        "--pine-tint": "#d9e6df",
+        "--amber": "#8d5418",
+        "--amber-tint": "#f4e5d0",
+        "--plum": "#6a4074",
+        "--plum-tint": "#eadfed",
+        "--blue": "#295a83",
+        "--blue-tint": "#dae5ef",
+        "--on-accent": "#ffffff",
+        "--backdrop": "rgba(27,31,29,.35)",
+        "--shadow": "rgba(27,31,29,.16)"
+      },
+      "dark": {
+        "--bg-rail": "#1c201e",
+        "--bg-index": "#171a19",
+        "--paper": "#121514",
+        "--inset": "#212624",
+        "--well": "#1a1f1d",
+        "--edge": "#2e3331",
+        "--edge-soft": "#262b29",
+        "--edge-strong": "#5a615d",
+        "--ink": "#e6e9e7",
+        "--ink-2": "#b7bcb9",
+        "--muted": "#8e9490",
+        "--sel": "#26342c",
+        "--hover": "rgba(230,233,231,.06)",
+        "--pine": "#7cbaa1",
+        "--pine-dark": "#a9d6c3",
+        "--pine-tint": "#22362d",
+        "--amber": "#d9a76c",
+        "--amber-tint": "#3b2e1d",
+        "--plum": "#c79fd0",
+        "--plum-tint": "#362a3b",
+        "--blue": "#8ab8dc",
+        "--blue-tint": "#1f3040",
+        "--on-accent": "#0f1a15",
+        "--backdrop": "rgba(0,0,0,.55)",
+        "--shadow": "rgba(0,0,0,.5)"
+      },
+      "semantics": {
+        "ink / ink-2 / muted": "three-step text hierarchy (primary reading, secondary meaning, tertiary meta) — the as-built had two",
+        "pine": "actionable: cross-references, focus ring, active pane bar, selected dimension, slots in templates",
+        "amber": "drift only: stale dots, stale evidence rule, repair line. Never decorative.",
+        "plum / blue": "dimension hues for phrasebook and concept-relations (lexicon is pine); used only in the dimension row indicator, kind glyphs and the entry kind badge, so a learner always knows which question they are inside",
+        "edge-strong": "the evidence rule: neutral, because evidence is fact, not action or alarm",
+        "surfaces": "rail (darkest neutral) → index → paper (entry): reading surface is always the brightest in light and the deepest in dark"
+      },
+      "pairs": {
+        "note": "WCAG 2.x contrast; only listed pairs may be used for text. Computed for the hex values above.",
+        "light": {
+          "--ink on --paper": 16.7,
+          "--ink on --bg-index": 15.7,
+          "--ink on --bg-rail": 14.5,
+          "--ink on --sel": 13.7,
+          "--ink on --inset": 14.7,
+          "--ink-2 on --paper": 8.9,
+          "--ink-2 on --inset": 7.9,
+          "--muted on --paper": 5.7,
+          "--muted on --bg-index": 5.3,
+          "--muted on --bg-rail": 5.0,
+          "--muted on --sel": 4.7,
+          "--pine on --paper": 7.7,
+          "--pine-dark on --pine-tint": 8.4,
+          "--pine on --pine-tint": 6.0,
+          "--amber on --paper": 6.2,
+          "--amber on --amber-tint": 5.0,
+          "--plum on --plum-tint": 6.3,
+          "--blue on --blue-tint": 5.7,
+          "--on-accent on --pine": 7.7
+        },
+        "dark": {
+          "--ink on --paper": 15.0,
+          "--ink on --bg-index": 14.3,
+          "--ink on --bg-rail": 13.5,
+          "--ink on --sel": 10.7,
+          "--ink on --inset": 12.6,
+          "--ink-2 on --paper": 9.5,
+          "--ink-2 on --inset": 8.0,
+          "--muted on --paper": 5.9,
+          "--muted on --bg-index": 5.7,
+          "--muted on --bg-rail": 5.3,
+          "--muted on --sel": 4.2,
+          "--pine on --paper": 8.2,
+          "--pine-dark on --pine-tint": 8.0,
+          "--pine on --pine-tint": 5.8,
+          "--amber on --paper": 8.5,
+          "--amber on --amber-tint": 6.1,
+          "--plum on --plum-tint": 6.0,
+          "--blue on --blue-tint": 6.4,
+          "--on-accent on --pine": 8.0
+        },
+        "forbidden": [
+          "--muted on --sel in dark for body text (4.2; use --ink-2)",
+          "any text on --edge/--edge-strong",
+          "--amber or --pine as a background for text other than --on-accent"
+        ]
+      }
+    },
+    "dimensionHues": {
+      "lexicon": "--pine",
+      "phrasebook": "--plum",
+      "concept-relations": "--blue",
+      "chapters": "--ink-2 (not a dimension)",
+      "consumers": [
+        "rail dimension row left bar when active",
+        "index section marker",
+        "entry kind badge",
+        "jump glyph"
+      ]
+    },
+    "states": {
+      "paneFocus": "2px --pine bar across the top edge of the focused pane; unfocused panes show none",
+      "cursor": "2px --pine ring, inset on rows, 2px offset on inline references; moves without layout shift",
+      "selection": "--sel background on the open entry's index row; persists when focus leaves the index",
+      "hintMode": "1-2 letter labels in mono 11 --ink on --pine-tint at the start of every reference and anchor; typed letters dim non-matching labels",
+      "hover": "--hover background on rows; references gain a solid underline",
+      "focusVisible": "the cursor ring doubles as :focus-visible; nothing else ever outlines"
+    },
+    "darkMode": {
+      "mechanism": "[data-theme] on <html>, color-scheme set to match, defaults to prefers-color-scheme, key t toggles and persists",
+      "seams": "none: a single stylesheet owns both schemes"
+    },
+    "motion": {
+      "default": "none; the trail's back/forward and peek open use a 120ms opacity/translate; disabled under prefers-reduced-motion"
+    }
+  },
+  "dependencies": [
+    "Manifest must carry per-chapter relation edges (currently an edge count only) for entry-chapter 'Relations anchored here'.",
+    "anchor.path and anchor.curated_against must reach the viewer for evidence provenance and per-anchor drift marks.",
+    "Aliases must be included in the search index for jump and index filter.",
+    "Routes lexicon / phrasebook / relations / chapters reuse the reserved group ids the model already protects.",
+    "Drill state is unmodeled by design; if progress should persist, that is a data-model change, not a viewer one."
+  ],
+  "openQuestions": [
+    "Whether to keep the IJKL/EDAF bindings as a selectable alternate layout or retire them.",
+    "Sorting default for the lexicon index: alphabetical (dictionary feel) vs by defining chapter (course feel).",
+    "Whether the peek should also work on index rows (preview without opening) — cheap to add, might make the entry pane feel optional."
+  ]
+}
