@@ -24,7 +24,14 @@ import {
   type Phrasebook,
   type RelationEdge,
 } from "./lingua";
-import type { Destination, NavigateRequest } from "./navigator-types";
+import type {
+  Destination,
+  NavigateRequest,
+  PhraseBit,
+  RelationsBit,
+  TermBit,
+} from "./navigator-types";
+import type { LexiconEntry, Phrase } from "./lingua";
 
 export const CREDENTIAL_HINT =
   "set ANTHROPIC_API_KEY in web/.env.local or run `claude /login`";
@@ -340,6 +347,63 @@ export function parseResultText(text: string): unknown {
 const MAX_RESULTS = 6;
 const DETAIL_MAX = 160;
 
+// Bounds for the inline bit payloads the popup's detail view renders.
+const BIT_ANCHOR_CAP = 3;
+const BIT_EDGE_CAP = 12;
+const BIT_QUOTE_MAX = 240;
+const BIT_GLOSS_MAX = 160;
+
+function termBit(ctx: NavigatorContext, entry: LexiconEntry): TermBit {
+  const { name, register } = ctx.corpus;
+  const defined = chapterByLocalId(
+    ctx.manifest, name, register, entry.defined_in,
+  );
+  return {
+    kind: "term",
+    termKind: entry.kind,
+    definition: entry.definition,
+    ...(entry.aliases?.length ? { aliases: entry.aliases } : {}),
+    ...(defined
+      ? {
+          definedIn: {
+            title: `${defined.number} ${defined.title}`,
+            href: chapterHref(defined),
+          },
+        }
+      : {}),
+    anchors: entry.anchors.slice(0, BIT_ANCHOR_CAP).map((a) => ({
+      chapter: a.chapter,
+      chapterTitle: chapterByLocalId(ctx.manifest, name, register, a.chapter)
+        ?.title,
+      quote: truncate(a.quote, BIT_QUOTE_MAX),
+    })),
+  };
+}
+
+function phraseBit(ctx: NavigatorContext, phrase: Phrase): PhraseBit {
+  return {
+    kind: "phrase",
+    phrase: phrase.phrase,
+    intent: phrase.intent,
+    ...(phrase.template ? { template: phrase.template } : {}),
+    terms: phrase.terms.map((s) => ctx.lexicon[s]?.term ?? s),
+  };
+}
+
+function relationsBit(ctx: NavigatorContext, type: string): RelationsBit {
+  const name = (s: string) => ctx.lexicon[s]?.term ?? s;
+  const typed = ctx.edges.filter((e) => e.type === type);
+  return {
+    kind: "relations",
+    edges: typed.slice(0, BIT_EDGE_CAP).map((e) => ({
+      from: name(e.from),
+      to: name(e.to),
+      gloss: truncate(e.gloss, BIT_GLOSS_MAX),
+    })),
+    more: Math.max(0, typed.length - BIT_EDGE_CAP),
+  };
+}
+
 // The retrieval-only fast path: chroma hits become the answer directly —
 // no LLM round-trip. Detail lines come from the data files (definition,
 // intent, gloss), and the top term's defining chapter is suggested right
@@ -416,6 +480,7 @@ export function resolveDestinations(
           title: entry.term,
           kind: "term",
           detail: truncate(r.reason, DETAIL_MAX),
+          bit: termBit(ctx, entry),
         };
       }
     } else if (r.kind === "phrase") {
@@ -426,15 +491,18 @@ export function resolveDestinations(
           title: truncate(phrase.phrase, 80),
           kind: "phrase",
           detail: truncate(r.reason, DETAIL_MAX),
+          bit: phraseBit(ctx, phrase),
         };
       }
     } else if (r.kind === "relations") {
-      if (ctx.edges.some((e) => e.type === r.id)) {
+      const bit = relationsBit(ctx, r.id);
+      if (bit.edges.length > 0) {
         dest = {
           href: `/${name}/${register}/relations/${r.id}`,
           title: `relations: ${r.id}`,
           kind: "relations",
           detail: truncate(r.reason, DETAIL_MAX),
+          bit,
         };
       }
     }
