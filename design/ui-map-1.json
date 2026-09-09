@@ -49,7 +49,7 @@
       "k / ↑": "previous",
       "g g": "top",
       "G": "bottom",
-      "enter": "open (index) / follow (entry reference)"
+      "enter": "open (index) / open the reference in place (entry — the same expanded window as space→enter; a reference's enter never navigates. f-hints and clicks are the travel gestures)"
     },
     "dimensions": {
       "1": "Lexicon",
@@ -137,7 +137,7 @@
         "Relations: outgoing and incoming relationEdge lists in two columns, edge type inline before the other-endpoint cross-reference — no gloss run-in; the edge entry and peek carry it",
         "Mentioned in: derived chapter list"
       ],
-      "keyboard": "f hint mode; n/p cycle references; e cycles anchors; space peeks; enter follows; y copies term.term"
+      "keyboard": "f hint mode (travel); n/p cycle references; e cycles anchors; space peeks; enter opens the reference in place; y copies term.term"
     },
     {
       "id": "entry-phrase",
@@ -189,7 +189,7 @@
         "compact (space): headword + kind, the full definition/intent/gloss (never clamped — the peek must fully view the reading text, which is what lets section lists omit it), first anchor quote, 'enter opens here'",
         "expanded (enter): the full entry — every section, rendered exactly as the entry route renders it — in a centered scrollable overlay. The URL, index, and entry panes are untouched: a peek NEVER navigates, because a follow would replace the entry pane and switch the index dimension, invalidating the two panes behind it. References inside the card are real links — an explicit click travels and closes the overlay"
       ],
-      "keyboard": "space opens the compact peek; enter expands it in place (enter on the expanded card closes); j/k scroll the expanded card; space/esc close",
+      "keyboard": "space opens the compact peek; enter expands it in place — and enter directly on a reference cursor opens the expanded card without the compact step, so space→enter and enter land on the same window (enter on the expanded card closes); j/k scroll the expanded card; space/esc close",
       "notes": "Compact is anchored beside the reference and never covers the reading measure; expanded is modal. Replaces the nested-modal dive — and carries the flashcard reveal: sections show identity, the peek shows content, and reading a whole entry in place is one more keystroke."
     },
     {

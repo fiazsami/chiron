@@ -62,7 +62,7 @@ export const KEYMAP: KeyBinding[] = [
   { keys: ["k", "ArrowUp"], display: "k / ↑", section: "Within a pane", description: "previous", action: "cursor-up" },
   { keys: [], display: "g g", section: "Within a pane", description: "top", action: "cursor-top" },
   { keys: ["G"], display: "G", section: "Within a pane", description: "bottom", action: "cursor-bottom" },
-  { keys: ["Enter"], display: "↵", section: "Within a pane", description: "open (index) / follow (reference)", action: "activate" },
+  { keys: ["Enter"], display: "↵", section: "Within a pane", description: "open (index) / open reference in place (entry)", action: "activate" },
 
   { keys: ["1"], display: "1", section: "Dimensions", description: "first dimension", action: "view-1" },
   { keys: ["2"], display: "2", section: "Dimensions", description: "second dimension", action: "view-2" },

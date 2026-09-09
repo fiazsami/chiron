@@ -432,7 +432,7 @@ export default function Shell({
     });
   };
 
-  const openPeek = () => {
+  const openPeek = (expanded: boolean) => {
     if (!refCursor) return;
     const t = registry.get(refCursor);
     if (!t) return;
@@ -445,7 +445,7 @@ export default function Shell({
       targetId: refCursor,
       rect: t.el.getBoundingClientRect(),
       measureRect: measure ?? null,
-      expanded: false,
+      expanded,
     });
   };
 
@@ -524,8 +524,10 @@ export default function Shell({
           const href = cursorId ? rowHrefs.get(cursorId) : undefined;
           if (href) navigateReset(href);
         } else if (refCursor) {
-          const t = registry.get(refCursor);
-          if (t) follow(t.href);
+          // Same window as space→enter: enter on a reference opens the
+          // expanded peek in place — f-hints and clicks are the travel
+          // gestures.
+          openPeek(true);
         }
         break;
       case "view-1":
@@ -546,7 +548,7 @@ export default function Shell({
         startHints();
         break;
       case "peek":
-        openPeek();
+        openPeek(false);
         break;
       case "ref-next":
         moveRef(1, (t) => !t.isAnchor);
