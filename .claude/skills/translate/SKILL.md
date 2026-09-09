@@ -55,11 +55,15 @@ recorded-but-unimplemented modes as out of scope.
    no revision round needed. Read the output:
    - `REJECTED <chapter> <dim>` rows → step 4.
    - `HELD for the redefinition gate` rows → step 5.
-4. **Retry rejects.** `uv run python -m tools.lingua author --retry <id>`
-   re-authors a rejected chapter synchronously with its stored violations
-   and previous payload attached; then `author --apply` again. **At most 2
-   retries per chapter**; after that, park it on a "needs human review"
-   list and move on.
+4. **Retry rejects.** First run the /verify skill's triage on the
+   register — it classifies each rejection (cascade vs. genuine vs.
+   mechanical) and yields the retry id set with correct ordering; a
+   cascade dependent retried without its bounced definer just bounces
+   again. Then `uv run python -m tools.lingua author --retry <id...>`
+   re-authors the rejected chapters synchronously with their stored
+   violations and previous payloads attached; then `author --apply`
+   again. **At most 2 retries per chapter**; after that, park it on a
+   "needs human review" list and move on.
 5. **Human gate: redefinitions.** For each held chapter the stage prints
    the declared redefinitions (slug, current owner, the author's reason)
    and writes the chapter's payloads to `work/authoring/gated/`, with the
