@@ -40,6 +40,28 @@ from .status import (
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def load_env(path: Path) -> None:
+    """Load KEY=value pairs from a .env file into os.environ. Real
+    environment variables always win; empty values are skipped so a blank
+    template line never shadows `ant auth` credential resolution."""
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):]
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        if key and value and key not in os.environ:
+            os.environ[key] = value
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tools.lingua",
@@ -304,6 +326,7 @@ def _report(bundles: list[RegisterBundle], warnings: list[str]) -> None:
 
 def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
     corpora_dir = corpora_dir or ROOT / "corpora"
+    load_env(ROOT / ".env")
     args = _parser().parse_args(argv)
 
     try:

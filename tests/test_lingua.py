@@ -364,3 +364,33 @@ def test_extract_bundle_headings(tmp_path, markdown_corpus, capsys):
     ):
         assert heading in out
     assert "context-window: context window (concept)" in out
+
+
+# --- .env loading ----------------------------------------------------------
+
+def test_load_env(tmp_path, monkeypatch):
+    from tools.lingua.__main__ import load_env
+
+    env = tmp_path / ".env"
+    env.write_text(
+        "# comment\n"
+        "\n"
+        "CHIRON_TEST_PLAIN=alpha\n"
+        'CHIRON_TEST_QUOTED="beta value"\n'
+        "export CHIRON_TEST_EXPORTED=gamma\n"
+        "CHIRON_TEST_EMPTY=\n"
+        "CHIRON_TEST_PRESET=from-file\n"
+        "not a kv line\n"
+    )
+    monkeypatch.delenv("CHIRON_TEST_PLAIN", raising=False)
+    monkeypatch.delenv("CHIRON_TEST_EMPTY", raising=False)
+    monkeypatch.setenv("CHIRON_TEST_PRESET", "from-shell")
+
+    import os
+    load_env(env)
+    assert os.environ["CHIRON_TEST_PLAIN"] == "alpha"
+    assert os.environ["CHIRON_TEST_QUOTED"] == "beta value"
+    assert os.environ["CHIRON_TEST_EXPORTED"] == "gamma"
+    assert "CHIRON_TEST_EMPTY" not in os.environ  # blank template line
+    assert os.environ["CHIRON_TEST_PRESET"] == "from-shell"  # shell wins
+    load_env(tmp_path / "missing.env")  # absent file is a no-op
