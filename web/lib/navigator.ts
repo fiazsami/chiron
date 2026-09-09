@@ -74,7 +74,7 @@ export interface RetrievedBit {
 }
 
 const REPO_ROOT = path.dirname(CORPORA_DIR);
-const RETRIEVE_N = 24;
+const RETRIEVE_N = 12; // results cap at 6 after dedupe/membership drops
 const BRIDGE_TIMEOUT_MS = 20_000;
 
 // Query the register's persistent chroma store via a short-lived Python
@@ -214,43 +214,17 @@ function locationBlock(ctx: NavigatorContext, pathname?: string): string {
   return `\n## Where they are reading\n${parts.join(" ")}\n`;
 }
 
-// One prompt line per retrieval hit; provenance notes carry the chapter ids
-// the model may cite for kind "chapter".
-function retrievedLines(bits: RetrievedBit[]): string {
-  return bits
-    .map((b) => {
-      const m = b.metadata;
-      const doc = truncate(b.document.replace(/\s+/g, " ").trim(), 300);
-      if (m.kind === "term") {
-        return `- term ${m.slug}: ${doc} (defined in ${m.defined_in}; anchored in ${m.chapters})`;
-      }
-      if (m.kind === "phrase") {
-        return `- phrase ${m.slug}: ${doc} (anchored in ${m.chapters})`;
-      }
-      return `- relations ${m.type}: ${doc} (anchored in ${m.chapters})`;
-    })
-    .join("\n");
-}
-
 function navigatorSystemPrompt(
   ctx: NavigatorContext,
   req: NavigateRequest,
-  retrieved: RetrievedBit[] | null,
 ): string {
   const { corpus } = ctx;
   const chapterExample = ctx.chapters[0]
     ? `${ctx.chapters[0].group}/${ctx.chapters[0].number}`
     : "group/01";
-  const candidateSection = retrieved
-    ? `## Retrieved candidates (nearest matches from the corpus's bit store, best first)
-${retrievedLines(retrieved)}
-
-For kind "chapter", copy a chapter id from a candidate's provenance note (e.g. "defined in ${chapterExample}") — suggest the chapter when it, not the bit itself, is the best next read.`
-    : `## Candidate index
-${candidateIndex(ctx)}`;
   return `You are the smart navigator for the corpus "${corpus.title}" (${corpus.name}/${corpus.register}). The learner selected a passage while reading and wants the most relevant pages in this viewer to follow next.
 
-Choose ONLY ids that appear in the candidates below${retrieved ? " (or chapter ids from their provenance notes)" : ""}. Return 0 to 6 destinations, best first. Every id must be copied verbatim — never invent one. If nothing is genuinely relevant, return an empty results list.
+Choose ONLY from the candidate index below. Return 0 to 6 destinations, best first. Every id must be copied verbatim — never invent one. If nothing is genuinely relevant, return an empty results list.
 
 Kinds and id formats:
 - "chapter": register-local chapter id, e.g. "${chapterExample}"
@@ -263,7 +237,8 @@ Ranking guidance: the term a selected word names, then the chapter that defines 
 ## Learner's selection
 "${req.selection}"
 ${req.context ? `\n## Surrounding paragraph\n${req.context}\n` : ""}${locationBlock(ctx, req.pathname)}
-${candidateSection}`;
+## Candidate index
+${candidateIndex(ctx)}`;
 }
 
 // Structure only — no maxItems/maxLength/pattern/format, which the
@@ -299,13 +274,12 @@ export function buildNavigatorOptions(
   ctx: NavigatorContext,
   req: NavigateRequest,
   abortController: AbortController,
-  retrieved: RetrievedBit[] | null,
 ): Options {
   const model =
     process.env.CHIRON_NAVIGATOR_MODEL ?? process.env.CHIRON_AGENT_MODEL;
   return {
     cwd: CORPORA_DIR,
-    systemPrompt: navigatorSystemPrompt(ctx, req, retrieved),
+    systemPrompt: navigatorSystemPrompt(ctx, req),
     tools: [],
     disallowedTools: [
       "Bash",
@@ -365,6 +339,51 @@ export function parseResultText(text: string): unknown {
 
 const MAX_RESULTS = 6;
 const DETAIL_MAX = 160;
+
+// The retrieval-only fast path: chroma hits become the answer directly —
+// no LLM round-trip. Detail lines come from the data files (definition,
+// intent, gloss), and the top term's defining chapter is suggested right
+// after it, mirroring what the model used to do. Output feeds
+// resolveDestinations, so the membership firewall still applies (a store
+// mid-rebuild can hold bits the YAML no longer has).
+export function retrievedToRaw(
+  ctx: NavigatorContext,
+  bits: RetrievedBit[],
+): { kind: string; id: string; reason: string }[] {
+  const out: { kind: string; id: string; reason: string }[] = [];
+  let chapterSuggested = false;
+  for (const bit of bits) {
+    const m = bit.metadata;
+    if (m.kind === "term") {
+      const entry = ctx.lexicon[m.slug];
+      if (!entry) continue;
+      out.push({
+        kind: "term",
+        id: m.slug,
+        reason: firstSentence(entry.definition),
+      });
+      if (!chapterSuggested && entry.defined_in) {
+        out.push({
+          kind: "chapter",
+          id: entry.defined_in,
+          reason: `defines ${entry.term}`,
+        });
+        chapterSuggested = true;
+      }
+    } else if (m.kind === "phrase") {
+      const phrase = ctx.phrasebook[m.slug];
+      if (!phrase) continue;
+      out.push({ kind: "phrase", id: m.slug, reason: phrase.intent });
+    } else if (m.kind === "relation") {
+      const edge = ctx.edges.find(
+        (e) => e.from === m.from && e.to === m.to && e.type === m.type,
+      );
+      if (!edge) continue;
+      out.push({ kind: "relations", id: m.type, reason: edge.gloss });
+    }
+  }
+  return out;
+}
 
 // The hallucination firewall: every id must resolve against the manifest or
 // data files or the result is silently dropped. Model order is the ranking.

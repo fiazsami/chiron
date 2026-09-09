@@ -9,6 +9,7 @@ import {
   parseResultText,
   queryChroma,
   resolveDestinations,
+  retrievedToRaw,
   withCredentialHint,
 } from "@/lib/navigator";
 import type { NavigateRequest } from "@/lib/navigator-types";
@@ -74,19 +75,36 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  // Retrieval narrows the candidates to the selection's nearest bits; a
-  // register without a chroma store falls back to the full candidate index.
+  // Retrieval IS the answer when the register has a chroma store: bits come
+  // back ranked, and resolveDestinations grounds them — no LLM round-trip.
+  // Only storeless registers take the slow candidate-index LLM path below.
   const [ctx, retrieved] = await Promise.all([
     loadNavigatorContext(manifest, corpus),
     queryChroma(corpus, request.selection),
   ]);
-  const source = retrieved ? "chroma" : "index";
+  if (retrieved) {
+    const results = resolveDestinations(
+      ctx,
+      retrievedToRaw(ctx, retrieved),
+      request.pathname,
+    );
+    return Response.json(
+      { results },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Navigator-Source": "chroma",
+        },
+      },
+    );
+  }
+
   const abortController = new AbortController();
   req.signal.addEventListener("abort", () => abortController.abort());
   const deadline = setTimeout(() => abortController.abort(), DEADLINE_MS);
 
   try {
-    const options = buildNavigatorOptions(ctx, request, abortController, retrieved);
+    const options = buildNavigatorOptions(ctx, request, abortController);
     let structured: unknown = null;
     let failure: string | null = null;
     for await (const msg of query({
@@ -137,7 +155,7 @@ export async function POST(req: NextRequest): Promise<Response> {
       {
         headers: {
           "Cache-Control": "no-store",
-          "X-Navigator-Source": source,
+          "X-Navigator-Source": "index",
         },
       },
     );
