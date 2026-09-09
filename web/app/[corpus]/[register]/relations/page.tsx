@@ -45,7 +45,7 @@ export default async function RelationsPage({ params }: Params) {
         </p>
       ) : (
         types.map((type) => (
-          <section key={type} className="card relation-group">
+          <section key={type} id={type} className="card relation-group">
             <h2>{type}</h2>
             <ul className="relation-list">
               {edges

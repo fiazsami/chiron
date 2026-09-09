@@ -44,7 +44,7 @@ export default async function PhrasebookPage({ params }: Params) {
         </p>
       ) : (
         entries.map(([slug, phrase]) => (
-          <article key={slug} className="card phrase-entry">
+          <article key={slug} id={slug} className="card phrase-entry">
             <h2 className="phrase-text">{phrase.phrase}</h2>
             <p className="phrase-intent muted">{phrase.intent}</p>
             {phrase.template && (

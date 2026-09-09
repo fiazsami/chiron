@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import Workspace from "@/components/ide/Workspace";
+import ReaderShell from "@/components/reader/ReaderShell";
 import { getWorkspace } from "@/lib/workspace";
 import { EMPTY_WORKSPACE } from "@/lib/workspace-types";
+// github-markdown-css first so globals.css wins equal-specificity ties.
+import "github-markdown-css/github-markdown.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,13 +17,13 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // The shell (explorer tree, palette, status bar) is workspace-wide, so it
-  // mounts here; pages render into its editor pane.
+  // The reader shell (sidebar, article list) is workspace-wide, so it
+  // mounts here; pages render into its article pane.
   const data = await getWorkspace().catch(() => EMPTY_WORKSPACE);
   return (
     <html lang="en">
       <body>
-        <Workspace data={data}>{children}</Workspace>
+        <ReaderShell data={data}>{children}</ReaderShell>
       </body>
     </html>
   );

@@ -1,7 +1,6 @@
-// Server-side builder for the IDE shell's workspace data: the explorer
-// tree, command-palette index, and status-bar facts, all derived from the
-// manifest plus each register's lexicon (for term names in the palette and
-// breadcrumbs).
+// Server-side builder for the reader shell's workspace data: the sidebar
+// sections, article-list rows, and term index, all derived from the
+// manifest plus each register's lexicon (for term display names).
 
 import {
   DIMENSIONS,
@@ -46,6 +45,10 @@ export async function getWorkspace(): Promise<WorkspaceData> {
     title: c.title,
     href: chapterHref(c),
     states: c.states,
+    counts: {
+      terms: c.terms_defined?.length ?? 0,
+      phrases: c.phrases?.length ?? 0,
+    },
   }));
 
   const terms: WorkspaceTerm[] = [];

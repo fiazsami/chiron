@@ -1,8 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
+import MarkdownArticle from "@/components/MarkdownArticle";
 import {
   accentClass,
   findCorpus,
@@ -96,13 +94,11 @@ export default async function ChapterPage({ params }: Params) {
   // lexicon cross-links below the article.
   return (
     <>
-      <article
-        className={`card chapter-body ${accentClass(manifest, corpus, register, group)}`}
+      <MarkdownArticle
+        className={`chapter-body ${accentClass(manifest, corpus, register, group)}`}
       >
-        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
-          {chapter.body}
-        </ReactMarkdown>
-      </article>
+        {chapter.body}
+      </MarkdownArticle>
       {defined.length + mentioned.length > 0 && (
         <aside className="card chapter-terms">
           <h2>Terms in this chapter</h2>

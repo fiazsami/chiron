@@ -1,9 +1,5 @@
 import Link from "next/link";
 import {
-  DIMENSIONS,
-  DIMENSION_LABELS,
-  accentClass,
-  chapterHref,
   getManifest,
   totalsLine,
   type ManifestCorpus,
@@ -13,7 +9,6 @@ export const dynamic = "force-dynamic";
 
 export default async function IndexPage() {
   const manifest = await getManifest();
-  const chapters = manifest.chapters;
 
   if (manifest.corpora.length === 0) {
     return (
@@ -29,12 +24,13 @@ export default async function IndexPage() {
     );
   }
 
-  // One manifest entry per (corpus, register); group them by corpus.
+  // One manifest entry per (corpus, register); group them by corpus. The
+  // middle pane owns chapter browsing — this page is just the landing with
+  // one card per register.
   const corpora = new Map<string, ManifestCorpus[]>();
   for (const c of manifest.corpora) {
     corpora.set(c.name, [...(corpora.get(c.name) ?? []), c]);
   }
-  const multiCorpus = corpora.size > 1;
 
   return (
     <>
@@ -47,69 +43,21 @@ export default async function IndexPage() {
       </header>
 
       {[...corpora.entries()].map(([name, registers]) => (
-        <div key={name}>
-          {multiCorpus && (
-            <h2 className="corpus-heading">{registers[0].title}</h2>
-          )}
+        <div key={name} className="dimension-cards">
           {registers.map((corpus) => {
             const key = `${corpus.name}/${corpus.register}`;
             const totals = totalsLine(corpus);
             return (
-              <div key={key}>
-                <h3 className="register-heading">
-                  <Link href={`/${key}`}>
-                    {multiCorpus ? corpus.register : `${corpus.title} · ${corpus.register}`}
-                  </Link>
-                  {corpus.label ? (
-                    <span className="register-label"> — {corpus.label}</span>
-                  ) : null}
-                  {totals ? <span className="register-totals">{totals}</span> : null}
-                </h3>
-                {corpus.groups.map((group) => {
-                  const groupChapters = chapters.filter(
-                    (c) =>
-                      c.corpus === corpus.name &&
-                      c.register === corpus.register &&
-                      c.group === group.id,
-                  );
-                  if (groupChapters.length === 0) return null;
-                  const accent = accentClass(
-                    manifest,
-                    corpus.name,
-                    corpus.register,
-                    group.id,
-                  );
-                  return (
-                    <section
-                      key={`${key}/${group.id}`}
-                      className={`group-section ${accent}`}
-                    >
-                      <h2>{group.label}</h2>
-                      <div className="chapter-list">
-                        {groupChapters.map((c) => (
-                          <Link
-                            key={c.id}
-                            className="chapter-row"
-                            href={chapterHref(c)}
-                          >
-                            {DIMENSIONS.filter((d) => d in c.states).map(
-                              (d) => (
-                                <span
-                                  key={d}
-                                  className={`status-dot ${c.states[d]}`}
-                                  title={`${DIMENSION_LABELS[d]}: ${c.states[d]}`}
-                                />
-                              ),
-                            )}
-                            <span className="chapter-num">{c.number}</span>
-                            <span className="chapter-title">{c.title}</span>
-                          </Link>
-                        ))}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
+              <Link key={key} className="dimension-card" href={`/${key}`}>
+                <span className="dimension-card-head">
+                  {corpus.title}
+                  <span className="muted">· {corpus.register}</span>
+                </span>
+                {corpus.label && <span className="muted">{corpus.label}</span>}
+                {totals && (
+                  <span className="dimension-card-state muted">{totals}</span>
+                )}
+              </Link>
             );
           })}
         </div>
