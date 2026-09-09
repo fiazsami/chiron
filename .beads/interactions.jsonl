@@ -1,0 +1,4 @@
+{"id":"int-af733301","kind":"field_change","created_at":"2026-09-09T01:44:55.417209Z","actor":"Fiaz Sami","issue_id":"chiron-4ya","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"shipped and committed"}}
+{"id":"int-9c244499","kind":"field_change","created_at":"2026-09-09T01:44:55.616145Z","actor":"Fiaz Sami","issue_id":"chiron-6co","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"shipped and committed"}}
+{"id":"int-7026bd1d","kind":"field_change","created_at":"2026-09-09T01:44:55.800984Z","actor":"Fiaz Sami","issue_id":"chiron-a42","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"shipped and committed"}}
+{"id":"int-024d76b6","kind":"field_change","created_at":"2026-09-09T01:48:42.000905Z","actor":"Fiaz Sami","issue_id":"chiron-mi6","extra":{"field":"status","new_value":"closed","old_value":"open","reason":"agents+skills shipped; old assets deleted"}}
