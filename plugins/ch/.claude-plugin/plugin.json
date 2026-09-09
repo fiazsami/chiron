@@ -2,8 +2,14 @@
   "name": "ch",
   "description": "chiron: mount any git repo as a corpus, extract its linguistic substrate (lexicon, phrasebook, concept relations), and calibrate your own language against it.",
   "version": "1.0.0",
+  "author": {
+    "name": "Fiaz Sami"
+  },
   "skills": "./skills/",
-  "agents": "./agents/",
+  "agents": [
+    "./agents/lingua-author.md",
+    "./agents/lingua-validator.md"
+  ],
   "hooks": {
     "SessionStart": [
       {
