@@ -54,8 +54,9 @@ bd close <id>         # Complete work
 ## Build & Test
 
 ```bash
-uv run python -m tools.notes --check     # pipeline drift report, writes nothing
-python3 -m compileall -q tools           # syntax check (no test suite yet)
+uv run python -m tools.lingua check      # pipeline drift report, writes nothing
+uv run python -m pytest tests/ -q       # pipeline test suite (tmp_path fixtures only)
+python3 -m compileall -q tools           # syntax check
 cd web && npm run build                  # type-checks the viewer + manifest contract
 ```
 
@@ -63,20 +64,29 @@ cd web && npm run build                  # type-checks the viewer + manifest con
 
 chiron mounts any git repo as a **corpus** under `corpora/<name>/` (gitignored
 in full — corpora live only on the learner's machine). Each **register**
-(`v1/`, `v2/`, …) is one retelling of the corpus under its own
-`translation.yaml`; a per-register `tools/adapter.py` scans `source/` into the
-`Corpus`/`Chapter` model (`tools/notes/model.py`), the pipeline renders notes
-pages plus `corpora/.manifest.json` (version 5), and `web/` serves them at
-`/[corpus]/[register]/[group]/[slug]`. See README.md for the full layout.
+(`v1/`, `v2/`, …) is one retelling under its own `translation.yaml`; a
+per-register `tools/adapter.py` scans `source/` into the `Corpus`/`Chapter`
+model (`tools/lingua/model.py`), the pipeline extracts linguistic dimensions
+(lexicon, phrasebook, concept-relations) into machine-owned `data/*.yaml`,
+renders `pages/` plus `corpora/.manifest.json` (version 6), and `web/` serves
+them at `/[corpus]/[register]/…` with a Claude Agent SDK learning agent.
+See README.md for the full layout; methodology/README.md for the theory and
+the dimension = mode slug = methodology doc = dimension module contract.
 
 ## Conventions & Patterns
 
 - Vocabulary is load-bearing: corpus (not course), register (not iteration),
   chapter (not lesson), group (not tier). Chapter ids are
   `<corpus>/<vN>/<group>/<NN>`.
-- `corpora/*/source/` is read-only material; `notes/` is generated;
-  `data/facts.yaml` is machine-owned via `--set-facts` — never hand-edit any
-  of them.
-- The manifest keys, extract-bundle headings, and `--status --json` keys are
-  contracts shared by `tools/notes/`, `web/lib/content.ts`, and
-  `.claude/agents/*.md` — change them in lockstep or not at all.
+- `corpora/*/source/` is read-only material; `pages/` is generated;
+  `data/*.yaml` is machine-owned via `uv run python -m tools.lingua set` —
+  never hand-edit any of them. Anchor quotes are verbatim and mechanically
+  verified; drift pins are per-anchor (`curated_against`).
+- The manifest v6 keys, extract-bundle headings, and `status --json` keys are
+  contracts shared by `tools/lingua/`, `web/lib/content.ts`, and
+  `.claude/agents/*.md` — change them in lockstep or not at all. Each
+  methodology doc's "Schema and caps" section mirrors its dimension's
+  `validate_payload` — change those together too.
+- Group ids `lexicon`, `phrasebook`, `relations`, `concept-relations`,
+  `chat`, `api`, `assets` are reserved (they would shadow viewer routes);
+  the build rejects them.

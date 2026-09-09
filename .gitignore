@@ -4,6 +4,7 @@ __pycache__/
 # Node (web/ viewer)
 node_modules/
 web/.next/
+web/.env*.local
 *.py[oc]
 build/
 dist/
