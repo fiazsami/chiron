@@ -298,11 +298,6 @@ pre code { background: none; padding: 0; }
   padding-bottom: 8px; margin-bottom: 10px;
   border-bottom: 1px solid var(--pine-tint);
 }
-.nav-detail-back {
-  border: none; background: none; padding: 0; cursor: pointer;
-  color: var(--muted); font-size: 12px; flex-shrink: 0; font-family: inherit;
-}
-.nav-detail-back:hover { color: var(--pine); }
 .nav-detail-title {
   display: inline-flex; align-items: baseline; gap: 10px;
   font-family: var(--serif); font-size: 20px; font-weight: 600;

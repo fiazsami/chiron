@@ -348,13 +348,6 @@ export default function NavigatorPopup({
         {inDetail && current && (
           <div className="nav-detail-view">
             <div className="nav-detail-head">
-              <button
-                className="nav-detail-back"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setMode("list")}
-              >
-                ‹ back
-              </button>
               <span className="nav-glyph" aria-hidden>
                 {GLYPHS[current.kind]}
               </span>
