@@ -7,6 +7,7 @@ import {
   loadNavigatorContext,
   parseNavigatorOutput,
   parseResultText,
+  queryChroma,
   resolveDestinations,
   withCredentialHint,
 } from "@/lib/navigator";
@@ -73,13 +74,19 @@ export async function POST(req: NextRequest): Promise<Response> {
     );
   }
 
-  const ctx = await loadNavigatorContext(manifest, corpus);
+  // Retrieval narrows the candidates to the selection's nearest bits; a
+  // register without a chroma store falls back to the full candidate index.
+  const [ctx, retrieved] = await Promise.all([
+    loadNavigatorContext(manifest, corpus),
+    queryChroma(corpus, request.selection),
+  ]);
+  const source = retrieved ? "chroma" : "index";
   const abortController = new AbortController();
   req.signal.addEventListener("abort", () => abortController.abort());
   const deadline = setTimeout(() => abortController.abort(), DEADLINE_MS);
 
   try {
-    const options = buildNavigatorOptions(ctx, request, abortController);
+    const options = buildNavigatorOptions(ctx, request, abortController, retrieved);
     let structured: unknown = null;
     let failure: string | null = null;
     for await (const msg of query({
@@ -127,7 +134,12 @@ export async function POST(req: NextRequest): Promise<Response> {
     const results = resolveDestinations(ctx, raw, request.pathname);
     return Response.json(
       { results },
-      { headers: { "Cache-Control": "no-store" } },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Navigator-Source": source,
+        },
+      },
     );
   } catch (err) {
     if (abortController.signal.aborted) {

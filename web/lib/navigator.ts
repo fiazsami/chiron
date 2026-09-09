@@ -4,6 +4,9 @@
 // data files so only pages that actually exist ever reach the client.
 // Never import from client components.
 
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import {
   CORPORA_DIR,
@@ -60,8 +63,65 @@ export async function loadNavigatorContext(
   return { manifest, corpus, chapters, lexicon, phrasebook, edges };
 }
 
+// ---------------------------------------------------------- chroma bridge
+
+// Retrieval hit from the register's chroma store (tools/lingua/chroma.py).
+export interface RetrievedBit {
+  id: string;
+  document: string;
+  metadata: Record<string, string>;
+  distance: number;
+}
+
+const REPO_ROOT = path.dirname(CORPORA_DIR);
+const RETRIEVE_N = 24;
+const BRIDGE_TIMEOUT_MS = 20_000;
+
+// Query the register's persistent chroma store via a short-lived Python
+// bridge (an embedded store has no wire protocol for Node). Resolves null
+// on any failure — no store yet, bridge error, bad JSON — and the caller
+// falls back to the full candidate index, so retrieval is never load-bearing.
+export function queryChroma(
+  corpus: ManifestCorpus,
+  text: string,
+  n = RETRIEVE_N,
+): Promise<RetrievedBit[] | null> {
+  const chromaDir = path.join(
+    CORPORA_DIR,
+    corpus.name,
+    corpus.register,
+    "chroma",
+  );
+  if (!existsSync(path.join(chromaDir, "chroma.sqlite3"))) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    const child = execFile(
+      "uv",
+      ["run", "python", "-m", "tools.lingua.chroma", "query", chromaDir, String(n)],
+      { cwd: REPO_ROOT, timeout: BRIDGE_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
+      (err, stdout) => {
+        if (err) {
+          console.warn(`navigator: chroma bridge failed (${err.message})`);
+          resolve(null);
+          return;
+        }
+        try {
+          const parsed = JSON.parse(stdout) as unknown;
+          resolve(Array.isArray(parsed) ? (parsed as RetrievedBit[]) : null);
+        } catch {
+          resolve(null);
+        }
+      },
+    );
+    child.stdin?.write(text);
+    child.stdin?.end();
+  });
+}
+
 // Keep the candidate index bounded so the prompt stays one fast call; detail
 // degrades before membership ever does — the closed set holds at any size.
+// Retained as the fallback when a register has no chroma store yet.
 const INDEX_CAP = 24_000;
 
 function firstSentence(text: string): string {
@@ -154,28 +214,56 @@ function locationBlock(ctx: NavigatorContext, pathname?: string): string {
   return `\n## Where they are reading\n${parts.join(" ")}\n`;
 }
 
+// One prompt line per retrieval hit; provenance notes carry the chapter ids
+// the model may cite for kind "chapter".
+function retrievedLines(bits: RetrievedBit[]): string {
+  return bits
+    .map((b) => {
+      const m = b.metadata;
+      const doc = truncate(b.document.replace(/\s+/g, " ").trim(), 300);
+      if (m.kind === "term") {
+        return `- term ${m.slug}: ${doc} (defined in ${m.defined_in}; anchored in ${m.chapters})`;
+      }
+      if (m.kind === "phrase") {
+        return `- phrase ${m.slug}: ${doc} (anchored in ${m.chapters})`;
+      }
+      return `- relations ${m.type}: ${doc} (anchored in ${m.chapters})`;
+    })
+    .join("\n");
+}
+
 function navigatorSystemPrompt(
   ctx: NavigatorContext,
   req: NavigateRequest,
+  retrieved: RetrievedBit[] | null,
 ): string {
   const { corpus } = ctx;
+  const chapterExample = ctx.chapters[0]
+    ? `${ctx.chapters[0].group}/${ctx.chapters[0].number}`
+    : "group/01";
+  const candidateSection = retrieved
+    ? `## Retrieved candidates (nearest matches from the corpus's bit store, best first)
+${retrievedLines(retrieved)}
+
+For kind "chapter", copy a chapter id from a candidate's provenance note (e.g. "defined in ${chapterExample}") — suggest the chapter when it, not the bit itself, is the best next read.`
+    : `## Candidate index
+${candidateIndex(ctx)}`;
   return `You are the smart navigator for the corpus "${corpus.title}" (${corpus.name}/${corpus.register}). The learner selected a passage while reading and wants the most relevant pages in this viewer to follow next.
 
-Choose ONLY from the candidate index below. Return 0 to 6 destinations, best first. Every id must be copied verbatim from the index — never invent one. If nothing is genuinely relevant, return an empty results list.
+Choose ONLY ids that appear in the candidates below${retrieved ? " (or chapter ids from their provenance notes)" : ""}. Return 0 to 6 destinations, best first. Every id must be copied verbatim — never invent one. If nothing is genuinely relevant, return an empty results list.
 
 Kinds and id formats:
-- "chapter": register-local chapter id, e.g. "${ctx.chapters[0] ? `${ctx.chapters[0].group}/${ctx.chapters[0].number}` : "group/01"}"
+- "chapter": register-local chapter id, e.g. "${chapterExample}"
 - "term": lexicon slug
 - "phrase": phrasebook slug
-- "relations": a relation type from the inventory
+- "relations": a relation type
 
 Ranking guidance: the term a selected word names, then the chapter that defines or develops it, then phrasings that teach the selected wording, then a relation type only when the selection is about how concepts connect. Each reason: one clause, learner-facing, grounded in the selection.
 
 ## Learner's selection
 "${req.selection}"
 ${req.context ? `\n## Surrounding paragraph\n${req.context}\n` : ""}${locationBlock(ctx, req.pathname)}
-## Candidate index
-${candidateIndex(ctx)}`;
+${candidateSection}`;
 }
 
 // Structure only — no maxItems/maxLength/pattern/format, which the
@@ -211,12 +299,13 @@ export function buildNavigatorOptions(
   ctx: NavigatorContext,
   req: NavigateRequest,
   abortController: AbortController,
+  retrieved: RetrievedBit[] | null,
 ): Options {
   const model =
     process.env.CHIRON_NAVIGATOR_MODEL ?? process.env.CHIRON_AGENT_MODEL;
   return {
     cwd: CORPORA_DIR,
-    systemPrompt: navigatorSystemPrompt(ctx, req),
+    systemPrompt: navigatorSystemPrompt(ctx, req, retrieved),
     tools: [],
     disallowedTools: [
       "Bash",

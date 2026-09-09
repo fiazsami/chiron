@@ -10,7 +10,20 @@ the store yet (ingestion now, retrieval later).
 Documents carry the prose an embedding should see; metadata carries the
 viewer route (`href`) and provenance so a retrieval hit can be resolved back
 to a page without re-reading the YAML.
+
+The module is also runnable as a query bridge for the web viewer's smart
+navigator (which cannot read an embedded chroma store from Node):
+
+    echo "the selection" | python -m tools.lingua.chroma query <chroma-dir> <n>
+
+prints a JSON list of {id, document, metadata, distance}, or exits 3 when
+the directory holds no store (the viewer then falls back to its candidate
+index).
 """
+
+import json
+import sys
+from pathlib import Path
 
 from .dimensions.base import LinguaDataError
 from .status import RegisterBundle
@@ -118,3 +131,54 @@ def ingest(bundle: RegisterBundle) -> int:
     if ids:
         collection.add(ids=ids, documents=docs, metadatas=metas)
     return len(ids)
+
+
+def query_bits(chroma_dir: Path, text: str, n: int) -> list[dict]:
+    """Nearest bits to `text` from a register's store, best first."""
+    import chromadb
+    from chromadb.config import Settings
+
+    client = chromadb.PersistentClient(
+        path=str(chroma_dir), settings=Settings(anonymized_telemetry=False)
+    )
+    collection = client.get_collection(COLLECTION)
+    count = collection.count()
+    if count == 0:
+        return []
+    res = collection.query(query_texts=[text], n_results=min(n, count))
+    return [
+        {"id": id_, "document": doc, "metadata": meta, "distance": dist}
+        for id_, doc, meta, dist in zip(
+            res["ids"][0],
+            res["documents"][0],
+            res["metadatas"][0],
+            res["distances"][0],
+        )
+    ]
+
+
+def _main(argv: list[str]) -> int:
+    if len(argv) != 3 or argv[0] != "query":
+        print("usage: echo <text> | python -m tools.lingua.chroma "
+              "query <chroma-dir> <n>", file=sys.stderr)
+        return 2
+    chroma_dir = Path(argv[1])
+    if not (chroma_dir / "chroma.sqlite3").exists():
+        print("no store — run `uv run python -m tools.lingua chroma` first",
+              file=sys.stderr)
+        return 3
+    try:
+        n = int(argv[2])
+    except ValueError:
+        print(f"n must be an integer, got {argv[2]!r}", file=sys.stderr)
+        return 2
+    text = sys.stdin.read().strip()
+    if not text:
+        print("empty query text on stdin", file=sys.stderr)
+        return 2
+    print(json.dumps(query_bits(chroma_dir, text, n)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_main(sys.argv[1:]))
