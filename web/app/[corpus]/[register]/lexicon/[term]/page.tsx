@@ -79,7 +79,7 @@ export default async function TermPage({ params }: Params) {
             <ul className="term-phrasings">
               {phrasings.map(([pslug, p]) => (
                 <li key={pslug}>
-                  <Link href={`/${name}/${register}/phrasebook`}>
+                  <Link href={`/${name}/${register}/phrasebook/${pslug}`}>
                     {p.phrase}
                   </Link>{" "}
                   <span className="muted">— {p.intent}</span>

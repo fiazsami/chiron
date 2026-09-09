@@ -23,6 +23,7 @@ export interface WorkspaceRegister {
   states: Partial<Record<Dimension, DimensionState>>;
   totals: { terms?: number; phrases?: number; relations?: number };
   groups: WorkspaceGroup[];
+  relationTypes: string[]; // relation types present among the register's edges
 }
 
 export interface WorkspaceChapter {
@@ -45,16 +46,25 @@ export interface WorkspaceTerm {
   href: string;
 }
 
+export interface WorkspacePhrase {
+  key: string; // register key
+  slug: string;
+  phrase: string;
+  href: string;
+}
+
 export interface WorkspaceData {
   registers: WorkspaceRegister[];
   chapters: WorkspaceChapter[];
   terms: WorkspaceTerm[];
+  phrases: WorkspacePhrase[];
 }
 
 export const EMPTY_WORKSPACE: WorkspaceData = {
   registers: [],
   chapters: [],
   terms: [],
+  phrases: [],
 };
 
 export function segmentsOf(pathname: string): string[] {

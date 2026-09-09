@@ -19,6 +19,7 @@ import {
   type WorkspaceData,
 } from "@/lib/workspace-types";
 import ArticleList from "./ArticleList";
+import CommandPalette from "./CommandPalette";
 import NavigatorPopup, {
   captureSelection,
   type CapturedSelection,
@@ -85,6 +86,7 @@ export default function ReaderShell({
   const [focusedPane, setFocusedPane] = useState<Pane>("list");
   const [scopes, setScopes] = useState<Record<string, string>>({});
   const [nav, setNav] = useState<NavigatorRequest | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [dragging, setDragging] = useState<"sidebar" | "list" | null>(null);
@@ -235,13 +237,24 @@ export default function ReaderShell({
   const handlerRef = useRef<(e: KeyboardEvent) => void>(() => {});
   handlerRef.current = (e: KeyboardEvent) => {
     if (e.defaultPrevented) return;
+    // ⌘K / Ctrl-K toggles the palette everywhere, including inside fields
+    // and over the navigator popup.
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === "k") {
+      e.preventDefault();
+      setNav(null);
+      setPaletteOpen((o) => !o);
+      return;
+    }
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const target = e.target as HTMLElement | null;
     if (target?.closest("input, textarea, select, [contenteditable]")) return;
-    if (nav) {
-      // The popup owns the keyboard; Escape here is a fallback in case
-      // focus escaped the dialog.
-      if (e.key === "Escape") setNav(null);
+    if (nav || paletteOpen) {
+      // The overlay owns the keyboard; Escape here is a fallback in case
+      // focus escaped it.
+      if (e.key === "Escape") {
+        setNav(null);
+        setPaletteOpen(false);
+      }
       return;
     }
     const action = KEYMAP[e.key];
@@ -331,7 +344,7 @@ export default function ReaderShell({
         style={{ width: sidebarWidth }}
         onPointerDown={() => setFocusedPane("sidebar")}
       >
-        <Sidebar data={data} pathname={decodedPath} scope={scope} />
+        <Sidebar data={data} scope={scope} />
       </aside>
       <div
         className={`pane-handle${dragging === "sidebar" ? " dragging" : ""}`}
@@ -371,6 +384,9 @@ export default function ReaderShell({
           context={nav.context}
           onClose={() => setNav(null)}
         />
+      )}
+      {paletteOpen && (
+        <CommandPalette data={data} onClose={() => setPaletteOpen(false)} />
       )}
     </div>
   );

@@ -2,11 +2,7 @@
 // cross-pane cursor, and the keymap. Client-safe — no node APIs (mirrors
 // workspace-types.ts).
 
-import {
-  DIMENSION_LABELS,
-  DIMENSION_SEGMENTS,
-  type Dimension,
-} from "./dimensions";
+import { DIMENSION_LABELS, DIMENSION_SEGMENTS } from "./dimensions";
 import {
   activeRegister,
   segmentsOf,
@@ -123,13 +119,13 @@ export function chapterAt(
 export type Pane = "sidebar" | "list" | "article";
 
 // The sidebar's keyboard traversal order. Must mirror Sidebar.tsx's render
-// order exactly (hub, tracked dimensions in registry order, then non-empty
-// groups) or the cursor would visit rows that aren't on screen.
+// order exactly (hub, then non-empty groups) or the cursor would visit rows
+// that aren't on screen. The linguistic bits (terms, phrasings, relations)
+// deliberately have no sidebar rows — they are lookup-only surfaces.
 export interface SidebarRow {
   href: string;
   key: string; // register key
-  kind: "hub" | "dimension" | "group";
-  dimension?: Dimension;
+  kind: "hub" | "group";
   group?: string;
 }
 
@@ -137,14 +133,6 @@ export function sidebarRowsFor(data: WorkspaceData): SidebarRow[] {
   const rows: SidebarRow[] = [];
   for (const reg of data.registers) {
     rows.push({ href: `/${reg.key}`, key: reg.key, kind: "hub" });
-    for (const d of reg.modes) {
-      rows.push({
-        href: `/${reg.key}/${DIMENSION_SEGMENTS[d]}`,
-        key: reg.key,
-        kind: "dimension",
-        dimension: d,
-      });
-    }
     for (const group of reg.groups) {
       if (!data.chapters.some((c) => c.key === reg.key && c.group === group.id))
         continue;
@@ -175,9 +163,7 @@ export function sidebarIndexFor(
     (r) => r.key === reg.key && r.kind === "hub",
   );
 
-  // Article URLs win over segment interpretation (routing does the same);
-  // the cursor sits on the row that scoped the list.
-  if (chapterAt(data, pathname)) {
+  const scopedIndex = () => {
     if (scope?.key === reg.key && scope.kind === "group") {
       const i = rows.findIndex(
         (r) => r.key === reg.key && r.kind === "group" && r.group === scope.group,
@@ -185,22 +171,14 @@ export function sidebarIndexFor(
       if (i >= 0) return i;
     }
     return hubIndex;
-  }
-  if (seg.length === 4 && seg[2] === "lexicon") {
-    // Term detail belongs to the Lexicon row.
-    return rows.findIndex(
-      (r) => r.key === reg.key && r.dimension === "lexicon",
-    );
-  }
+  };
+
+  // Article URLs win over segment interpretation (routing does the same);
+  // articles and the lookup-only bit pages (terms, phrasings, relations)
+  // keep the cursor on the row that scoped the list.
+  if (chapterAt(data, pathname)) return scopedIndex();
+  if (DIMENSION_SEGMENT_SET.has(seg[2])) return scopedIndex();
   if (seg.length === 3) {
-    if (DIMENSION_SEGMENT_SET.has(seg[2])) {
-      return rows.findIndex(
-        (r) =>
-          r.key === reg.key &&
-          r.kind === "dimension" &&
-          DIMENSION_SEGMENTS[r.dimension!] === seg[2],
-      );
-    }
     const i = rows.findIndex(
       (r) => r.key === reg.key && r.kind === "group" && r.group === seg[2],
     );
@@ -221,11 +199,20 @@ export function lookupTextFor(
   const chapter = chapterAt(data, pathname);
   if (chapter) return chapter.title;
   const seg = segmentsOf(pathname);
-  if (seg.length === 4 && seg[2] === "lexicon") {
-    return (
-      data.terms.find((t) => t.key === reg.key && t.slug === seg[3])?.term ??
-      seg[3]
-    );
+  if (seg.length === 4) {
+    if (seg[2] === "lexicon") {
+      return (
+        data.terms.find((t) => t.key === reg.key && t.slug === seg[3])?.term ??
+        seg[3]
+      );
+    }
+    if (seg[2] === "phrasebook") {
+      return (
+        data.phrases.find((p) => p.key === reg.key && p.slug === seg[3])
+          ?.phrase ?? seg[3]
+      );
+    }
+    if (seg[2] === "relations") return seg[3];
   }
   if (seg.length === 3) {
     const dim = reg.modes.find((d) => DIMENSION_SEGMENTS[d] === seg[2]);

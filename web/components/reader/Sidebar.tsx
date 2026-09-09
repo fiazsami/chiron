@@ -1,25 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import {
-  DIMENSION_COUNT_KEYS,
-  DIMENSION_LABELS,
-  DIMENSION_SEGMENTS,
-} from "@/lib/dimensions";
 import type { Scope } from "@/lib/reader";
 import type { WorkspaceData } from "@/lib/workspace-types";
 
-// Left pane: wordmark, then one section per register — "All Items", the
-// dimension surfaces (Reeder's special items), and group folders with
-// chapter counts. Rows are plain links; keyboard traversal order must
-// mirror this render order (see sidebarRowsFor in lib/reader.ts).
+// Left pane: wordmark, then one section per register — "All Items" and the
+// group folders with chapter counts. Rows are plain links; keyboard
+// traversal order must mirror this render order (see sidebarRowsFor in
+// lib/reader.ts). The linguistic bits (terms, phrasings, relations) have no
+// rows here on purpose: they are reachable only via smart lookup and ⌘K.
 export default function Sidebar({
   data,
-  pathname,
   scope,
 }: {
   data: WorkspaceData;
-  pathname: string;
   scope: Scope | null;
 }) {
   return (
@@ -35,12 +29,7 @@ export default function Sidebar({
       )}
       {data.registers.map((reg) => {
         const chapters = data.chapters.filter((c) => c.key === reg.key);
-        // A dimension surface being open owns the highlight; otherwise the
-        // current scope (all items vs a group folder) does.
-        const activeDimension = reg.modes.find((d) =>
-          pathname.startsWith(`/${reg.key}/${DIMENSION_SEGMENTS[d]}`),
-        );
-        const scopeHere = !activeDimension && scope?.key === reg.key;
+        const scopeHere = scope?.key === reg.key;
         return (
           <section key={reg.key} className="side-section">
             <h2 className="side-heading" title={reg.key}>
@@ -53,19 +42,6 @@ export default function Sidebar({
               <span className="side-label">All Items</span>
               <span className="side-count">{chapters.length}</span>
             </Link>
-            {reg.modes.map((d) => (
-              <Link
-                key={d}
-                className={`side-row side-special${activeDimension === d ? " on" : ""}`}
-                href={`/${reg.key}/${DIMENSION_SEGMENTS[d]}`}
-              >
-                <span className={`status-dot ${reg.states[d] ?? "none"}`} />
-                <span className="side-label">{DIMENSION_LABELS[d]}</span>
-                <span className="side-count">
-                  {reg.totals[DIMENSION_COUNT_KEYS[d]] ?? 0}
-                </span>
-              </Link>
-            ))}
             {reg.groups.map((group) => {
               const count = chapters.filter(
                 (c) => c.group === group.id,

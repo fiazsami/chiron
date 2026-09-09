@@ -1,12 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   DIMENSIONS,
-  DIMENSION_COUNT_KEYS,
-  DIMENSION_LABELS,
-  DIMENSION_SEGMENTS,
   findCorpus,
   getManifest,
+  totalsLine,
 } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +20,9 @@ export async function generateMetadata({ params }: Params) {
   };
 }
 
+// The register's "All Items" landing. The extracted linguistic structure is
+// deliberately not browsable from here — terms, phrasings, and relations
+// surface through smart lookup (p/w) and the ⌘K palette only.
 export default async function RegisterPage({ params }: Params) {
   const { corpus: name, register } = await params;
   const manifest = await getManifest();
@@ -30,50 +30,27 @@ export default async function RegisterPage({ params }: Params) {
   if (!corpus) notFound();
 
   const tracked = DIMENSIONS.filter((d) => d in corpus.data);
+  const totals = totalsLine(corpus);
 
   return (
-    <>
-      <header className="index-header">
-        <h1>
-          {corpus.title} <span className="muted">· {corpus.register}</span>
-        </h1>
-        {corpus.label && <p className="description">{corpus.label}</p>}
-        <p className="mini-badges hub-modes">
-          {tracked.map((d) => (
-            <span key={d} className="mini-badge">
-              {d}
-            </span>
-          ))}
-          {corpus.recorded_modes.map((m) => (
-            <span key={m} className="mini-badge recorded">
-              {m} (recorded)
-            </span>
-          ))}
-        </p>
-      </header>
-
-      <div className="dimension-cards">
-        {tracked.map((d) => {
-          const state = corpus.data[d]!.state;
-          const count = corpus.totals[DIMENSION_COUNT_KEYS[d]] ?? 0;
-          return (
-            <Link
-              key={d}
-              className="dimension-card"
-              href={`/${name}/${register}/${DIMENSION_SEGMENTS[d]}`}
-            >
-              <span className="dimension-card-head">
-                <span className={`status-dot ${state}`} title={state} />
-                {DIMENSION_LABELS[d]}
-              </span>
-              <span className="dimension-card-count">
-                {count} {DIMENSION_COUNT_KEYS[d]}
-              </span>
-              <span className="dimension-card-state muted">{state}</span>
-            </Link>
-          );
-        })}
-      </div>
-    </>
+    <header className="index-header">
+      <h1>
+        {corpus.title} <span className="muted">· {corpus.register}</span>
+      </h1>
+      {corpus.label && <p className="description">{corpus.label}</p>}
+      {totals && <p className="muted">{totals} — select a passage and press p to look things up.</p>}
+      <p className="mini-badges hub-modes">
+        {tracked.map((d) => (
+          <span key={d} className="mini-badge">
+            {d}
+          </span>
+        ))}
+        {corpus.recorded_modes.map((m) => (
+          <span key={m} className="mini-badge recorded">
+            {m} (recorded)
+          </span>
+        ))}
+      </p>
+    </header>
   );
 }

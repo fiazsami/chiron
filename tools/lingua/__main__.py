@@ -132,6 +132,14 @@ def _parser() -> argparse.ArgumentParser:
                         help="re-author rejected chapters with their stored "
                              "violations (synchronous)")
 
+    chroma = sub.add_parser(
+        "chroma",
+        help="load each register's bits (terms, phrasings, relation edges) "
+             "into corpora/<name>/<vN>/chroma/ — opt-in; the default "
+             "embedding model is downloaded on first run")
+    chroma.add_argument("targets", nargs="*", metavar="REGISTER",
+                        help="registers (<corpus>/<vN>); default: all")
+
     drift = sub.add_parser("accept-drift",
                            help="re-pin current content hashes for stale anchors "
                                 "(re-blesses content as-is; prefer re-authoring)")
@@ -371,6 +379,26 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
 
         if args.cmd == "accept-drift":
             return _accept_drift(bundles, resolve, args.ids, args.mode)
+
+        if args.cmd == "chroma":
+            from . import chroma as chromamod  # defers the chromadb import
+            selected = bundles
+            if args.targets:
+                names = set(args.targets)
+                selected = [
+                    b for b in bundles
+                    if f"{b.corpus.name}/{b.corpus.register}" in names
+                    or b.corpus.name in names
+                ]
+                if not selected:
+                    raise CorpusError(
+                        "no mounted register matches "
+                        + ", ".join(sorted(names)))
+            for bundle in selected:
+                key = f"{bundle.corpus.name}/{bundle.corpus.register}"
+                count = chromamod.ingest(bundle)
+                print(f"{key}: {count} bits → corpora/{key}/chroma/")
+            return 0
 
         if args.cmd == "author":
             model = (args.model or os.environ.get("CHIRON_AUTHOR_MODEL")

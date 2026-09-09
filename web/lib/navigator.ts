@@ -314,7 +314,7 @@ export function resolveDestinations(
       const phrase = ctx.phrasebook[r.id];
       if (phrase) {
         dest = {
-          href: `/${name}/${register}/phrasebook#${r.id}`,
+          href: `/${name}/${register}/phrasebook/${r.id}`,
           title: truncate(phrase.phrase, 80),
           kind: "phrase",
           detail: truncate(r.reason, DETAIL_MAX),
@@ -323,7 +323,7 @@ export function resolveDestinations(
     } else if (r.kind === "relations") {
       if (ctx.edges.some((e) => e.type === r.id)) {
         dest = {
-          href: `/${name}/${register}/relations#${r.id}`,
+          href: `/${name}/${register}/relations/${r.id}`,
           title: `relations: ${r.id}`,
           kind: "relations",
           detail: truncate(r.reason, DETAIL_MAX),
