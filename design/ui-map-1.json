@@ -186,10 +186,11 @@
       "id": "peek",
       "kind": "overlay",
       "displays": [
-        "compact preview of the cursor cross-reference: headword + kind, the full definition/intent/gloss (never clamped — the peek must fully view the reading text, which is what lets section lists omit it), first anchor quote, 'enter to open'"
+        "compact (space): headword + kind, the full definition/intent/gloss (never clamped — the peek must fully view the reading text, which is what lets section lists omit it), first anchor quote, 'enter opens here'",
+        "expanded (enter): the full entry — every section, rendered exactly as the entry route renders it — in a centered scrollable overlay. The URL, index, and entry panes are untouched: a peek NEVER navigates, because a follow would replace the entry pane and switch the index dimension, invalidating the two panes behind it. References inside the card are real links — an explicit click travels and closes the overlay"
       ],
-      "keyboard": "space opens, space/esc closes, enter promotes to a real follow",
-      "notes": "Anchored beside the reference; never covers the reading measure. Replaces the nested-modal dive for quick checks — and carries the flashcard reveal: sections show identity, the peek shows content."
+      "keyboard": "space opens the compact peek; enter expands it in place (enter on the expanded card closes); j/k scroll the expanded card; space/esc close",
+      "notes": "Compact is anchored beside the reference and never covers the reading measure; expanded is modal. Replaces the nested-modal dive — and carries the flashcard reveal: sections show identity, the peek shows content, and reading a whole entry in place is one more keystroke."
     },
     {
       "id": "jump",
@@ -649,14 +650,18 @@
     {
       "id": "term-chip",
       "area": "entry",
-      "binds": "phrase.terms → term.term + term.kind | chapter.defines / chapter.mentions → the same chip list (identity only)",
-      "contentKind": "headword+label",
+      "binds": "phrase.terms | chapter.defines | chapter.mentions → term.term; the pill's color IS the kind (no kind text — the tooltip names it)",
+      "contentKind": "headword",
       "spec": {
-        "face": "serif",
-        "size": 15,
-        "weight": 600,
-        "kind": "sans 12 --muted after",
-        "form": "cross-reference, no pill; wrapped in a comma list"
+        "face": "serif 600 md; machine-literal kinds set mono 500 sm",
+        "form": "kind-coded pill: tinted background, 999px radius, 2px 10px, no underline (hover restores it); wrapped flex list with 8px gaps, no comma separators",
+        "kindHues": {
+          "concept": "--pine on --pine-tint",
+          "name": "--plum on --plum-tint",
+          "identifier": "--blue on --blue-tint",
+          "command / file / value": "--ink-2 on --inset, mono — machine literals read as machine text"
+        },
+        "note": "every pair is in the contrast table; amber stays reserved for drift"
       }
     },
     {
@@ -725,8 +730,9 @@
         "headword": "serif 19 600",
         "reading": "serif 15 1.5, full text — never clamped (field caps: definition 400, intent 160, gloss 200 chars, all fit the card)",
         "quote": "serif 14 1.45 with 2px rule",
-        "footer": "11 --muted 'enter opens'",
-        "width": "min(420px, 40vw)"
+        "footer": "11 --muted 'enter opens here'",
+        "width": "min(420px, 40vw)",
+        "expanded": "min(720px, 92vw), max-height 72vh scrollable, entry sections at their entry specs with 28/32/40 padding, footer above a hairline; its references live in their own scope (fresh registry) so the underlying entry's cursor and hints are untouched"
       }
     },
     {
@@ -913,7 +919,7 @@
         "ink / ink-2 / muted": "three-step text hierarchy (primary reading, secondary meaning, tertiary meta) — the as-built had two",
         "pine": "actionable: cross-references, focus ring, active pane bar, selected dimension, slots in templates",
         "amber": "drift only: stale dots, stale evidence rule, repair line. Never decorative.",
-        "plum / blue": "dimension hues for phrasebook and concept-relations (lexicon is pine); used only in the dimension row indicator, kind glyphs and the entry kind badge, so a learner always knows which question they are inside",
+        "plum / blue": "dimension hues for phrasebook and concept-relations (lexicon is pine); used in the dimension indicators, kind glyphs and the entry kind badge — and reused as term-kind pill hues (name=plum, identifier=blue) in chip lists, where no dimension indicator shares the context, so the double duty stays legible",
         "edge-strong": "the evidence rule: neutral, because evidence is fact, not action or alarm",
         "surfaces": "rail (darkest neutral) → index → paper (entry): reading surface is always the brightest in light and the deepest in dark"
       },

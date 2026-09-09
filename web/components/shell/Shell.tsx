@@ -33,6 +33,7 @@ import Help from "./Help";
 import IndexPane from "./IndexPane";
 import Jump from "./Jump";
 import Peek from "./Peek";
+import PeekExpanded from "./PeekExpanded";
 import Rail, { railRows, type RailRow } from "./Rail";
 import {
   RefRegistry,
@@ -55,7 +56,13 @@ const TRAIL_CAP = 16;
 const GG_WINDOW_MS = 600;
 
 type Overlay =
-  | { kind: "peek"; targetId: string; rect: DOMRect; measureRect: DOMRect | null }
+  | {
+      kind: "peek";
+      targetId: string;
+      rect: DOMRect;
+      measureRect: DOMRect | null;
+      expanded: boolean; // enter expands in place — a peek never navigates
+    }
   | { kind: "jump" }
   | { kind: "drill"; items: DrillItem[] }
   | { kind: "help" };
@@ -268,9 +275,9 @@ export default function Shell({
     });
   }, [pathname, substrate, headwordOf]);
 
-  // ---- peek closes on scroll/resize ----
+  // ---- compact peek closes on scroll/resize (the expanded card is modal) ----
   useEffect(() => {
-    if (overlay?.kind !== "peek") return;
+    if (overlay?.kind !== "peek" || overlay.expanded) return;
     const close = () => setOverlay(null);
     const pane = entryPaneRef.current;
     pane?.addEventListener("scroll", close);
@@ -438,6 +445,7 @@ export default function Shell({
       targetId: refCursor,
       rect: t.el.getBoundingClientRect(),
       measureRect: measure ?? null,
+      expanded: false,
     });
   };
 
@@ -627,12 +635,14 @@ export default function Shell({
           e.preventDefault();
           setOverlay(null);
         } else if (e.key === "Enter") {
+          // Never a navigation: enter expands the peek into the full entry
+          // in place; on the expanded card it closes.
           e.preventDefault();
-          const t = registry.get(overlay.targetId);
-          setOverlay(null);
-          if (t) follow(t.href);
+          setOverlay(overlay.expanded ? null : { ...overlay, expanded: true });
+        } else if (overlay.expanded) {
+          // j/k scroll the card (its own listener); other keys pass.
         } else {
-          setOverlay(null); // any other key just dismisses the peek
+          setOverlay(null); // any other key just dismisses the compact peek
         }
       } else if (overlay.kind === "help") {
         if (e.key === "Escape" || e.key === "?") {
@@ -812,12 +822,15 @@ export default function Shell({
         {overlay?.kind === "drill" && (
           <Drill items={overlay.items} onClose={() => setOverlay(null)} />
         )}
-        {overlay?.kind === "peek" && peekModel && (
+        {overlay?.kind === "peek" && peekModel && !overlay.expanded && (
           <Peek
             entry={peekModel}
             targetRect={overlay.rect}
             measureRect={overlay.measureRect}
           />
+        )}
+        {overlay?.kind === "peek" && peekModel && overlay.expanded && (
+          <PeekExpanded entry={peekModel} onClose={() => setOverlay(null)} />
         )}
 
         <button

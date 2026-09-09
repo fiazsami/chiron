@@ -108,7 +108,7 @@ export default function Peek({
           {c.anchor.code ? c.anchor.quote : `“${c.anchor.quote}”`}
         </blockquote>
       )}
-      <div className="peek-footer">↵ opens · space closes</div>
+      <div className="peek-footer">↵ opens here · space closes</div>
     </div>
   );
 }

@@ -20,26 +20,26 @@ export default function ChapterEntry({
   const registerKey = substrate.register.key;
 
   // Sections list identity only — a term's definition is seen by peeking
-  // or opening it, like a flashcard. Refs render as a wrapped chip list.
+  // or opening it, like a flashcard. Refs render as kind-coded pills: the
+  // color carries the kind, the tooltip names it.
   const termChips = (slugs: string[]) => {
     const terms = slugs.flatMap((s) =>
       substrate.terms[s] ? [substrate.terms[s]] : [],
     );
     return (
-      <p className="entry-reading ref-list" style={{ marginTop: 0 }}>
-        {terms.map((t, i) => (
-          <span key={t.slug}>
-            {i > 0 && ", "}
-            <Reference
-              href={t.href}
-              headword={t.term}
-              kind="term"
-              className="term-chip"
-            >
-              {t.term}
-              <span className="kind">{t.kind}</span>
-            </Reference>
-          </span>
+      <p className="ref-list">
+        {terms.map((t) => (
+          <Reference
+            key={t.slug}
+            href={t.href}
+            headword={t.term}
+            kind="term"
+            className="term-chip"
+            dataKind={t.kind}
+            title={t.kind}
+          >
+            {t.term}
+          </Reference>
         ))}
       </p>
     );

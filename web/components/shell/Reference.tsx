@@ -13,6 +13,8 @@ export interface ReferenceProps {
   headword: string;
   kind: RefKind;
   className?: string;
+  title?: string; // tooltip (e.g. the term kind on a pill)
+  dataKind?: string; // term.kind — drives the pill's color coding
   children: React.ReactNode;
 }
 
@@ -21,6 +23,8 @@ export default function Reference({
   headword,
   kind,
   className,
+  title,
+  dataKind,
   children,
 }: ReferenceProps) {
   const api = useShell();
@@ -53,6 +57,8 @@ export default function Reference({
       ref={el}
       href={href}
       className={`reference${cursor ? " cursor" : ""}${className ? ` ${className}` : ""}`}
+      title={title}
+      data-kind={dataKind}
       tabIndex={-1}
       onClick={(e) => {
         e.preventDefault();

@@ -33,26 +33,23 @@ export default function PhraseEntry({
       )}
 
       <Section title="Terms used" count={phrase.terms.length}>
-        <p className="entry-reading" style={{ marginTop: 0 }}>
-          {phrase.terms.map((slug, i) => {
+        <p className="ref-list">
+          {phrase.terms.map((slug) => {
             const t = substrate.terms[slug];
-            return (
-              <span key={slug}>
-                {i > 0 && ", "}
-                {t ? (
-                  <Reference
-                    href={t.href}
-                    headword={t.term}
-                    kind="term"
-                    className="term-chip"
-                  >
-                    {t.term}
-                    <span className="kind">{t.kind}</span>
-                  </Reference>
-                ) : (
-                  slug
-                )}
-              </span>
+            return t ? (
+              <Reference
+                key={slug}
+                href={t.href}
+                headword={t.term}
+                kind="term"
+                className="term-chip"
+                dataKind={t.kind}
+                title={t.kind}
+              >
+                {t.term}
+              </Reference>
+            ) : (
+              <span key={slug}>{slug}</span>
             );
           })}
         </p>

@@ -815,13 +815,44 @@ pre {
   color: var(--pine);
   font-weight: 600;
 }
-.term-chip {
-  font: 600 var(--text-md) / var(--lh-chrome) var(--serif);
+/* Term chips are kind-coded pills: color carries the kind (tooltip names
+ * it). Named kinds get the accent hues; machine-literal kinds (command,
+ * file, value) are neutral mono. Every pair is in the contrast table;
+ * amber stays reserved for drift. */
+.ref-list {
+  max-width: var(--measure);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
-.term-chip .kind {
-  font: 400 12px / 1 var(--sans);
-  color: var(--muted);
-  margin-left: 3px;
+.reference.term-chip {
+  display: inline-block;
+  font: 600 var(--text-md) / 1.4 var(--serif);
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--inset);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.reference.term-chip[data-kind="concept"] {
+  background: var(--pine-tint);
+  color: var(--pine);
+}
+.reference.term-chip[data-kind="name"] {
+  background: var(--plum-tint);
+  color: var(--plum);
+}
+.reference.term-chip[data-kind="identifier"] {
+  background: var(--blue-tint);
+  color: var(--blue);
+}
+.reference.term-chip[data-kind="command"],
+.reference.term-chip[data-kind="file"],
+.reference.term-chip[data-kind="value"] {
+  font: 500 var(--text-sm) / 1.6 var(--mono);
+}
+.reference.term-chip:hover {
+  text-decoration: underline;
 }
 .provenance-block {
   font: 400 var(--text-sm) / 1.6 var(--mono);
@@ -902,9 +933,27 @@ pre {
   font-size: 14px;
   line-height: 1.45;
 }
-.peek .peek-footer {
+.peek-footer {
   font: 400 var(--text-xs) / 1 var(--sans);
   color: var(--muted);
+}
+/* The expanded peek: the full entry in place — never a navigation. */
+.peek-expanded {
+  width: min(720px, 92vw);
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+.peek-expanded-scroll {
+  overflow-y: auto;
+  max-height: 72vh;
+}
+.peek-expanded .entry-body {
+  padding: 28px 32px 40px;
+}
+.peek-expanded .peek-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--edge-soft);
 }
 .jump {
   width: min(640px, 92vw);
