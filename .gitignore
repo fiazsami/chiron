@@ -1,0 +1,28 @@
+# Python-generated files
+__pycache__/
+
+# Node (web/ viewer)
+node_modules/
+web/.next/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# macOS
+.DS_Store
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/
+*.tsbuildinfo
+
+# Mounted corpora live only on this machine — the repo ships tooling, never
+# corpus artifacts (building the adapter is the learner's exercise).
+corpora/

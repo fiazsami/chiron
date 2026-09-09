@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "chiron",
+  "project_id": "10253587-5ae4-445b-8f72-9cca2243ad7c"
+}
