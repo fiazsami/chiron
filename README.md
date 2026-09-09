@@ -5,8 +5,9 @@ as a **corpus** and extracts its **linguistic structure**: the lexicon (what
 things are called here), the phrasebook (how to say it when instructing an
 agent), and the concept relations (how the names relate). The extracted
 substrate is what you study: you learn to articulate — and to prompt any
-coding agent — in the corpus's own terms, and a learning agent in the local
-web viewer coaches you while you calibrate.
+coding agent — in the corpus's own terms. You browse the evidence in the local
+web viewer, and you practise the language in Claude Code, where `/ch:calibrate`
+grades your instructions against the substrate rather than against an opinion.
 
 The operating theory: every repository has a working language, and
 instructions phrased in that language land where generic phrasings drift.
@@ -17,11 +18,23 @@ modular plan each dimension follows.
 ## Quickstart
 
 ```bash
-/mount <repo-url>                  # in Claude Code: clone, plan, build the adapter
-/translate <name>/v1               # author the register's linguistic structure
-uv run python -m tools.lingua      # rebuild pages + manifest any time
-cd web && npm run dev              # browse at localhost:3000, chat with the coach
+/ch:mount <repo-url>       # in Claude Code: clone, plan, build the adapter
+/ch:translate <name>/v1    # author the register's linguistic substrate
+/ch:verify <name>/v1       # where it stands, and triage if an apply bounced
+/ch:calibrate <name>/v1    # practise the language until it transfers
+./ch where                 # one line: state + the next action
+cd web && npm run dev      # browse the evidence at localhost:3000
 ```
+
+The four verbs are one plugin. Once, to install it:
+
+```
+/plugin marketplace add /path/to/chiron
+/plugin install ch@chiron
+```
+
+`./ch` is the CLI, scoped: `./ch status` == `uv run python -m tools.lingua
+status`. Both work, both from the repo root.
 
 ## Layout
 
@@ -32,18 +45,18 @@ corpora/<name>/                    # one mounted corpus (gitignored in full —
   v1/                              # a register: one retelling of the material
     translation.yaml               # label, modes, notes, optional groups/adapter
     tools/adapter.py               # scan(cfg, root) -> Corpus (usually 4 lines)
-    data/lexicon.yaml              # machine-owned — written only by `set`
+    data/lexicon.yaml              # machine-owned — `author --apply` / `set` only
     data/phrasebook.yaml
     data/relations.yaml
     pages/                         # generated Markdown (chapters + indexes)
 corpora/.manifest.json             # version 6 — the viewer/agent's index
 methodology/                       # the modular extraction plans (ship with repo)
 tools/lingua/                      # the extraction pipeline
-web/                               # viewer + learning agent (Claude Agent SDK)
+web/                               # viewer: browse the evidence
 ```
 
 Each **register** (`v1/`, `v2/`, …) is one retelling of the same source under
-its own translation requirements; re-running `/mount` on a mounted corpus
+its own translation requirements; re-running `/ch:mount` on a mounted corpus
 creates the next one. Chapter ids are `<corpus>/<vN>/<group>/<NN>`.
 
 ## Vocabulary
@@ -54,6 +67,9 @@ creates the next one. Chapter ids are `<corpus>/<vN>/<group>/<NN>`.
 | register | iteration, version |
 | chapter | lesson |
 | group | tier, module, section |
+| entry | bit, card, item |
+| dimension | mode (outside `translation.yaml`), dim |
+| calibration | studying, practice |
 
 The vocabulary is load-bearing — the same slugs name translation modes,
 methodology documents, dimension modules, and manifest keys.
@@ -62,9 +78,9 @@ methodology documents, dimension modules, and manifest keys.
 
 Every lexicon entry, phrase, and relation edge carries **anchors**: verbatim
 quotes from the chapter's files, verified mechanically on write
-(`uv run python -m tools.lingua set …` rejects a quote it cannot find) and
+(`./ch set …` rejects a quote it cannot find) and
 pinned to the chapter's `content_hash`. When the source changes, exactly the
-affected anchors go stale; `status` shows where, `/translate` re-authors, and
+affected anchors go stale; `./ch where` shows what to do, `/ch:translate` re-authors, and
 `accept-drift` re-blesses only when you say so.
 
 Corpora are yours: they are gitignored wholesale, so back up `v<N>/data/` if
@@ -73,19 +89,27 @@ the extraction matters to you — it is the only hand-won artifact.
 ## CLI
 
 ```bash
-uv run python -m tools.lingua                 # build pages + manifest
-uv run python -m tools.lingua check --strict  # drift gate (CI-friendly)
-uv run python -m tools.lingua status --json   # per-chapter, per-dimension states
-uv run python -m tools.lingua extract <id>    # authoring bundle for agents
-uv run python -m tools.lingua set <dim> <id> --from payload.json
-uv run python -m tools.lingua accept-drift <id> [--mode <dim>]
+./ch                          # build pages + manifest
+./ch where                    # state + next action, per register
+./ch resolve <target>         # what a target expression expands to
+./ch check --strict           # drift gate (CI-friendly)
+./ch status --json            # per-chapter, per-dimension states
+./ch extract <id>             # authoring bundle for agents
+./ch set <dim> <id> --from payload.json
+./ch accept-drift <id> [--dimension <dim>]
 
-# API-native authoring (what /translate drives): Batch API + structured
+# Study — read-only, graded against data/*.yaml, no LLM in the loop.
+./ch ask <register> "<text>"          # what is this called here
+./ch ask <register> --relate <a> <b>  # how two names relate
+./ch grade <register> --text "…"      # does this instruction land (exit 0/1)
+
+# API-native authoring (what /ch:translate drives): Batch API + structured
 # outputs on a Sonnet-class model; results apply through the same
 # grounded validate/set path. Model/effort via --model/--effort or
 # CHIRON_AUTHOR_MODEL / CHIRON_AUTHOR_EFFORT.
-uv run python -m tools.lingua author <register|group|ids> [--sync]
-uv run python -m tools.lingua author --collect --wait
-uv run python -m tools.lingua author --apply [--check]
-uv run python -m tools.lingua author --retry <id>
+./ch author <register|group|ids> [--sync]
+./ch author --collect --wait
+./ch author --apply [--check]
+./ch author --status          # run health, cascades, the ordered retry set
+./ch author --retry <id>
 ```

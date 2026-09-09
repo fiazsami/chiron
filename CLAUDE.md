@@ -50,49 +50,9 @@ bd close <id>         # Complete work
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
 
+The Session Completion protocol above governs changes to this repo's tooling.
+It never applies to `corpora/` (gitignored in full — there is nothing to
+push). It never authorizes a commit or push the user did not ask for; when a
+skill's gate says to ask first, ask first.
 
-## Build & Test
-
-```bash
-uv run python -m tools.lingua check      # pipeline drift report, writes nothing
-uv run python -m pytest tests/ -q       # pipeline test suite (tmp_path fixtures only)
-python3 -m compileall -q tools           # syntax check
-cd web && npm run build                  # type-checks the viewer + manifest contract
-```
-
-## Architecture Overview
-
-chiron mounts any git repo as a **corpus** under `corpora/<name>/` (gitignored
-in full — corpora live only on the learner's machine). Each **register**
-(`v1/`, `v2/`, …) is one retelling under its own `translation.yaml`; a
-per-register `tools/adapter.py` scans `source/` into the `Corpus`/`Chapter`
-model (`tools/lingua/model.py`), the pipeline extracts linguistic dimensions
-(lexicon, phrasebook, concept-relations) into machine-owned `data/*.yaml`,
-renders `pages/` plus `corpora/.manifest.json` (version 6), and `web/` serves
-them at `/[corpus]/[register]/…` with a Claude Agent SDK learning agent.
-See README.md for the full layout; methodology/README.md for the theory and
-the dimension = mode slug = methodology doc = dimension module contract.
-
-## Conventions & Patterns
-
-- Vocabulary is load-bearing: corpus (not course), register (not iteration),
-  chapter (not lesson), group (not tier). Chapter ids are
-  `<corpus>/<vN>/<group>/<NN>`.
-- `corpora/*/source/` is read-only material; `pages/` is generated;
-  `data/*.yaml` is machine-owned via `uv run python -m tools.lingua set` —
-  never hand-edit any of them. Anchor quotes are verbatim and mechanically
-  verified; drift pins are per-anchor (`curated_against`).
-- Bulk authoring runs through the API-native stage
-  (`uv run python -m tools.lingua author`, driven by /translate): Batch API
-  + structured outputs, one register per run, results applied through the
-  same validate/`set` path. Undeclared define-conflicts auto-demote to
-  mentions (earlier chapter in register order owns the definition);
-  declared redefinitions always hold for a human gate.
-- The manifest v6 keys, extract-bundle headings, and `status --json` keys are
-  contracts shared by `tools/lingua/`, `web/lib/content.ts`, and
-  `.claude/agents/*.md` — change them in lockstep or not at all. Each
-  methodology doc's "Schema and caps" section mirrors its dimension's
-  `validate_payload` — change those together too.
-- Group ids `lexicon`, `phrasebook`, `relations`, `concept-relations`,
-  `chat`, `api`, `assets` are reserved (they would shadow viewer routes);
-  the build rejects them.
+@AGENTS.md

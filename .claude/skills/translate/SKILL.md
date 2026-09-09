@@ -11,6 +11,8 @@ description: >
   a fallback for one-off chapters without API credentials.
 ---
 
+> **Superseded.** This skill now lives in the `ch` plugin as `/ch:translate` (`plugins/ch/skills/translate/SKILL.md`). That copy is the maintained one; prefer it. Delete `.claude/skills/` once the plugin resolves.
+
 You are the orchestrator of the extraction loop. Authoring runs through the
 API-native stage (`uv run python -m tools.lingua author`), which is cheap
 (Sonnet-class model, Batch API at 50% pricing, one shared prompt-cache

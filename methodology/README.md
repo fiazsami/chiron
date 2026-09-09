@@ -26,12 +26,22 @@ content hash the quote was authored against. Grounding is enforced by the
 tooling, not by good intentions: `set` rejects any quote it cannot find in
 the chapter, and a chapter that changes marks exactly its own anchors stale.
 
-The learner works the substrate two ways: by browsing it in the web viewer,
-and by talking to the viewer's learning agent — a coach that answers "what is
-X called here", rewrites the learner's instructions into the corpus's own
-phrasing, and quizzes articulation. The goal is transfer: after enough
-calibration, the learner prompts any agent about this corpus in its own
-terms without looking anything up.
+The learner works the substrate two ways: by **browsing the evidence** in the
+web viewer, and by **practising the language in Claude Code** — `/ch:calibrate`
+is a coach that answers "what is X called here", rewrites the learner's
+instructions into the corpus's own phrasing, and quizzes articulation. It
+grades every answer against the substrate rather than against its own
+opinion: `./ch grade` reports which parts of an instruction name something
+this corpus names and which parts an agent would have to guess at, and its
+verdict is an exit code, for the same reason `set` rejects a quote it cannot
+find. Practice lives where instructions are actually typed. The goal is
+transfer: after enough calibration, the learner prompts any agent about this
+corpus in its own terms without looking anything up.
+
+One addressable unit of the substrate — one term, one phrasing, one relation
+edge — is an **entry**. Entries are what `ask` returns, what `grade` matches
+against, and what the viewer's lookup renders; they are never addressed by a
+URL of their own.
 
 ## The modularity contract
 
@@ -43,7 +53,7 @@ A **dimension** of the substrate is:
   registered in `tools/lingua/dimensions/__init__.py`.
 
 The three names are the same string. A methodology document without an
-implementation is a **recorded** mode: `/mount` stores it, the tooling
+implementation is a **recorded** mode: `/ch:mount` stores it, the tooling
 surfaces it, nothing renders it yet. That is how a new dimension enters the
 system — write the plan first, ship the machinery when it earns it.
 
@@ -58,7 +68,7 @@ Each dimension document follows a fixed skeleton:
 | `## Worked example` | both — one micro-example payload |
 
 Sections 2–4 are embedded verbatim into every chapter's extract bundle
-(`uv run python -m tools.lingua extract <id>`), so the plan steers the
+(`./ch extract <id>`), so the plan steers the
 authoring agents directly — the methodology is executed, not merely cited.
 The code (`validate_payload` in each dimension module) is the source of truth
 for the schema; when a validator changes, its `## Schema and caps` section

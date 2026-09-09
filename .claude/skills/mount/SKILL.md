@@ -11,6 +11,8 @@ description: >
   and the plan gate are where the learner's requirements enter the system.
 ---
 
+> **Superseded.** This skill now lives in the `ch` plugin as `/ch:mount` (`plugins/ch/skills/mount/SKILL.md`). That copy is the maintained one; prefer it. Delete `.claude/skills/` once the plugin resolves.
+
 You are mounting a corpus register into chiron. The repo root is the
 project root (where `tools/` and `corpora/` live); run all commands from
 there.
@@ -29,7 +31,7 @@ corpus artifacts live only on this machine:
   groups override, optional adapter knobs
 - `v<N>/tools/adapter.py` — YOUR main deliverable: `scan(cfg, root) -> Corpus`
 - `v<N>/data/` — the extracted linguistic structure: `lexicon.yaml`,
-  `phrasebook.yaml`, `relations.yaml` — machine-owned, written only by
+  `phrasebook.yaml`, `relations.yaml` — machine-owned, written only by `./ch author --apply` and
   `uv run python -m tools.lingua set ...`
 - `v<N>/pages/` — generated pages, created by the build
 
@@ -301,7 +303,7 @@ pure delegation the plan is short — present it anyway; the gate is the point.
 - Never modify anything under `corpora/*/source/` — corpus material is
   read-only (and may be someone else's licensed work).
 - Never hand-write files under `pages/` (generated) or `data/` (extraction
-  flows through `/translate` and `uv run python -m tools.lingua set`).
+  flows through `/ch:translate`, `./ch author --apply` and `./ch set`).
 - The adapter must not touch the network or mutate state.
 - The form and the plan gate are mandatory.
 - Registers are append-only: creating `v<N+1>` never edits an older

@@ -1,0 +1,20 @@
+{
+  "name": "ch",
+  "description": "chiron: mount any git repo as a corpus, extract its linguistic substrate (lexicon, phrasebook, concept relations), and calibrate your own language against it.",
+  "version": "1.0.0",
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null && [ -x ./ch ] && ./ch where 2>/dev/null || true'"
+          }
+        ]
+      }
+    ]
+  }
+}

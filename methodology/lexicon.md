@@ -51,7 +51,7 @@ in the lexicon.
 
 ## Schema and caps
 
-Payload for `uv run python -m tools.lingua set lexicon <id> --from payload.json`:
+Payload for `./ch set lexicon <id> --from payload.json`:
 
 ```json
 {"terms": [

@@ -47,7 +47,7 @@ so, not because it is plausible.
 
 ## Schema and caps
 
-Payload for `uv run python -m tools.lingua set concept-relations <id> --from payload.json`:
+Payload for `./ch set concept-relations <id> --from payload.json`:
 
 ```json
 {"edges": [

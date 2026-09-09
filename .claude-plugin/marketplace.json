@@ -1,0 +1,13 @@
+{
+  "name": "chiron",
+  "description": "chiron's own tooling, scoped under /ch:",
+  "owner": { "name": "chiron" },
+  "plugins": [
+    {
+      "name": "ch",
+      "source": "./plugins/ch",
+      "description": "Mount a repo as a corpus, author its linguistic substrate, and calibrate your own language against it.",
+      "version": "1.0.0"
+    }
+  ]
+}

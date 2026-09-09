@@ -12,6 +12,8 @@ description: >
   /translate's apply step, or whenever an apply printed REJECTED rows.
 ---
 
+> **Superseded.** This skill now lives in the `ch` plugin as `/ch:verify` (`plugins/ch/skills/verify/SKILL.md`). That copy is the maintained one; prefer it. Delete `.claude/skills/` once the plugin resolves.
+
 You are the post-apply auditor. An `author --apply` run has finished and
 some payloads may have bounced. Your job is diagnosis, not repair: every
 rejection gets a classification and a fix path, and the output is a plan

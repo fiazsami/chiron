@@ -42,7 +42,7 @@ phrasings you would use.
 
 ## Schema and caps
 
-Payload for `uv run python -m tools.lingua set phrasebook <id> --from payload.json`:
+Payload for `./ch set phrasebook <id> --from payload.json`:
 
 ```json
 {"phrases": [
