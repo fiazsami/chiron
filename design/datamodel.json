@@ -34,7 +34,8 @@
     "drift": "Two linked senses. Instructional drift: generic phrasing forces an agent to guess the mapping. Substrate drift: source content changing under an anchor, so its pin no longer matches — detected per anchor, never per corpus.",
     "define-vs-mention": "A term is DEFINED in exactly one chapter (defined_in) and MENTIONED everywhere else it is anchored. Writes declare which: define:true upserts the full entry; define:false contributes anchors only.",
     "translation": "The extraction act — retelling the corpus into the substrate under the register's recorded requirements.",
-    "calibration": "The learner's activity: adjusting their own language against the substrate until instructions transfer without lookup."
+    "calibration": "The learner's activity: adjusting their own language against the substrate until instructions transfer without lookup.",
+    "entry": "One addressable unit of the substrate — one term, one phrasing, or one relation edge — regardless of dimension. What `./ch ask` returns, what `./ch grade` matches against, and what the viewer's lookup modal renders. Deliberately not 'bit', which was minted in the retrieval/viewer layer and never ratified in methodology/, README's vocabulary table, or this file; entries are never addressed by a URL of their own."
   },
   "entities": {
     "corpus": {
@@ -213,6 +214,22 @@
       },
       "relationships": {},
       "source": "tools/lingua/status.py:3-70, tools/lingua/dimensions/base.py:178-185"
+    },
+    "calibrationEvent": {
+      "description": "One graded utterance by the learner, appended by `./ch grade`. The record of the activity this file already names calibration, which until now had machinery in neither surface. Deliberately NOT substrate: it lives under work/, never enters the manifest, is never read by web/, and losing it costs nothing.",
+      "identity": ["register", "ts"],
+      "attributes": {
+        "ts": { "type": "string", "required": true, "contentKind": "label", "notes": "UTC, second resolution. Append-only: no update, no delete." },
+        "register": { "type": "string", "required": true, "contentKind": "identifier" },
+        "kind": { "type": "string", "required": true, "contentKind": "label", "notes": "instruction | drill" },
+        "against": { "type": "string", "required": false, "contentKind": "identifier", "notes": "Entry id, for drills only." },
+        "text": { "type": "string", "required": true, "contentKind": "prose", "notes": "What the learner wrote, verbatim." },
+        "hits": { "type": "string[]", "required": true, "contentKind": "identifier", "notes": "Entry ids the utterance landed on." },
+        "misses": { "type": "string[]", "required": true, "contentKind": "prose", "notes": "Drift runs — each one a place an agent must guess." },
+        "verdict": { "type": "string", "required": true, "contentKind": "label", "notes": "lands | drifts | hit | miss — the CLI's exit code, never a model's opinion." }
+      },
+      "relationships": { "references": "term/phrase/relationEdge by entry id, with no referential integrity: entries may be re-authored underneath it" },
+      "source": "tools/lingua/study.py _log"
     }
   },
   "enums": {
@@ -293,7 +310,7 @@
     "All cross-references are register-relative; 'the same term across v1 and v2' has no representation at all.",
     "aliases are stored but never indexed or surfaced as lookup keys, despite the methodology asking authors to record competing spellings for exactly that purpose.",
     "template {slots} are unparsed free text — no slot list, no types, no linkage from slot names to lexicon slugs, despite template being the one artifact meant to be pasted into a real prompt.",
-    "The learning agent's named capabilities (naming lookup, phrasing rewrite, articulation quiz) are substrate consumers with no entity or persistence of their own — quiz/progress/calibration state is unmodeled.",
+    "`bit` (chroma.py, web/lib/navigator-types.ts, /api/bit) is the viewer layer's unratified name for what the methodology calls an entry — the word is retired in prose and new code, but the web/ rename and the chroma collection rename are deferred because both touch persisted state.",
     "No fourth dimension is designed anywhere; the extension point is fully specified (recorded modes) but empty. Treat mode as an open slug set and dimension as the closed implemented subset."
   ]
 }

@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "purpose": "The interaction layer as designed and as built: the verb spine, the target grammar, the skill rhythm, the gate object, the next-action ladder, the voice law, and the vocabulary settlement. Its counterpart to datamodel.json's 'ideal model' is not another JSON file — the ideal is prose, in methodology/README.md and AGENTS.md, because a fourth restatement of the theory is the disease this layer treats. What this file adds is the measurement: every surface records what it expresses (a pointer into the theory) or what it contradicts, and every claim carries a file:line and the quote that must still be there.",
+  "authority": {
+    "theory": "methodology/README.md",
+    "sharedCore": "AGENTS.md",
+    "skillReference": "plugins/ch/skills/GRAMMAR.md",
+    "note": "Skills and agent prompts reference the shared core; they do not restate it. Prohibitions are restated wherever they bind, byte-identical; explanations are stated once."
+  },
+  "driftTest": "tests/test_design_pointers.py — every {file, line, quote} in design/*.json must still resolve. A quote that moved lines warns; a quote that vanished fails.",
+
+  "spine": [
+    {
+      "verb": "/ch:mount",
+      "reading": "production",
+      "writes": ["corpus.yaml", "translation.yaml", "v<N>/tools/adapter.py", "v<N>/pages/"],
+      "owns": "getting material in; the adapter is the learning exercise",
+      "skill": "plugins/ch/skills/mount/SKILL.md",
+      "gates": ["A — scope", "B — plan"],
+      "takesSource": true,
+      "note": "The only verb that creates targets rather than consuming them, so it accepts a source expression as well."
+    },
+    {
+      "verb": "/ch:translate",
+      "reading": "production",
+      "writes": ["v<N>/data/*.yaml"],
+      "owns": "authoring and repairing the substrate; the single writer",
+      "skill": "plugins/ch/skills/translate/SKILL.md",
+      "gates": ["R — redefinition", "C — commit"],
+      "expresses": {
+        "file": "tools/lingua/author.py",
+        "line": 10,
+        "quote": "The single-writer discipline is unchanged"
+      }
+    },
+    {
+      "verb": "/ch:verify",
+      "reading": "production",
+      "writes": [],
+      "owns": "where a register stands, and triage when an apply bounced",
+      "skill": "plugins/ch/skills/verify/SKILL.md",
+      "gates": [],
+      "note": "Generalized from post-apply triage. Its mechanical half is `./ch author --status`, which is deterministic; the skill judges only what is left genuinely ambiguous. Before this it was referenced from exactly one line in the repo."
+    },
+    {
+      "verb": "/ch:calibrate",
+      "reading": "study",
+      "writes": ["v<N>/work/calibration.jsonl"],
+      "owns": "the learner's own language",
+      "skill": "plugins/ch/skills/calibrate/SKILL.md",
+      "gates": [],
+      "expresses": {
+        "file": "methodology/README.md",
+        "line": 29,
+        "quote": "The learner works the substrate two ways"
+      },
+      "note": "The missing reading. Production built the substrate; nothing used it. The coach lives in Claude Code because that is where instructions are actually typed — the skill the substrate exists to teach."
+    }
+  ],
+
+  "cli": {
+    "entry": "./ch",
+    "equivalence": "./ch <cmd> == uv run python -m tools.lingua <cmd>; both run from the repo root",
+    "rationale": "A hint nobody can paste is not a hint. `uv run python -m tools.lingua author --apply` is 43 characters of ceremony in every printed next-action.",
+    "shim": "ch"
+  },
+
+  "grammar": {
+    "home": "tools/lingua/resolve.py",
+    "checkableWith": "./ch resolve <target>",
+    "source": {
+      "file": "tools/lingua/resolve.py",
+      "line": 19,
+      "quote": "GRAMMAR = \"\"\"target grammar"
+    },
+    "forms": [
+      {"expr": "(nothing)", "means": "the caller's stated default"},
+      {"expr": "all", "means": "every register, one selection each"},
+      {"expr": "<corpus>", "means": "a corpus, when it has exactly one register"},
+      {"expr": "<corpus>/<vN>", "means": "a register"},
+      {"expr": "<corpus>/<vN>/<group>", "means": "a group"},
+      {"expr": "<group>/<NN>", "means": "a chapter, when one mounted register matches"},
+      {"expr": "<corpus>/<group>/<NN>", "means": "a chapter, when the corpus has one register"},
+      {"expr": "<corpus>/<vN>/<group>/<NN>", "means": "a chapter, always unambiguous"}
+    ],
+    "wasBefore": "Three resolvers with three acceptance sets — a chapter-only resolver, an author-target resolver, and a work-dir resolver that alone accepted a bare corpus name. The skills documented three grammars and one was narrower than its own tooling."
+  },
+
+  "rhythm": {
+    "beats": ["Orient", "Target", "Loop", "Gates", "Report"],
+    "optional": ["Fallback"],
+    "rules": [
+      "Orient: run ./ch where before beginning work.",
+      "Target: resolve and echo the expansion before acting.",
+      "Gates: the only beat permitted to ask the user a question.",
+      "Report: state line, then a table whose first column is the full chapter id, then exactly one next action."
+    ],
+    "modeledOn": {
+      "file": "methodology/README.md",
+      "line": 60,
+      "quote": "Each dimension document follows a fixed skeleton"
+    }
+  },
+
+  "gate": {
+    "law": "A gate that cannot show its material is a bug, not a gate.",
+    "fields": ["what changes", "the material", "branches", "reversibility", "unattended"],
+    "instances": [
+      {
+        "id": "A — scope",
+        "skill": "/ch:mount",
+        "reversibility": "reversible",
+        "absorbs": "name variant, origin-already-mounted, name collision, pull-before-register — four separate offers before"
+      },
+      {
+        "id": "B — plan",
+        "skill": "/ch:mount",
+        "reversibility": "append-only (permanent)",
+        "note": "The dimension choice moved here from the intake form. It is the one irreversible decision in the system and it used to be asked before the source had been explored. Moving it also dissolved a live bug: the re-mount path skipped the form, then referenced a form answer that on that path did not exist."
+      },
+      {
+        "id": "R — redefinition",
+        "skill": "/ch:translate",
+        "reversibility": "re-runnable",
+        "materialFrom": {
+          "file": "tools/lingua/author.py",
+          "line": 554,
+          "quote": "A gate that cannot show its material is a bug"
+        },
+        "note": "Both definitions are now printed with their anchors, and both branches are runnable commands. The reject branch is demote_conflicts applied mechanically to a second payload file, which let /ch:translate delete its 'editing a payload file is allowed' exception entirely."
+      },
+      {
+        "id": "C — commit",
+        "skill": "/ch:translate",
+        "reversibility": "reversible before push"
+      }
+    ]
+  },
+
+  "ladder": {
+    "home": "tools/lingua/where.py",
+    "source": {
+      "file": "tools/lingua/where.py",
+      "line": 56,
+      "quote": "def next_action(bundle) -> str:"
+    },
+    "rungs": [
+      "no corpora → /ch:mount <repo-url>",
+      "incomplete mount → /ch:mount <name> (resume)",
+      "failures newer than results → /ch:verify <register>",
+      "gated/ non-empty → /ch:translate <register> (redefinition gate open)",
+      "any stale → /ch:translate <register>",
+      "any none → /ch:translate <chapter-id>",
+      "everything ok → /ch:calibrate <register>"
+    ],
+    "note": "Rung 7 is the design in one string: when production is done, the next thing is study. The ladder used to simply end.",
+    "consumers": ["./ch where", "./ch status", "./ch check", "./ch (build)", "the SessionStart hook", "every skill's Report beat"]
+  },
+
+  "voice": [
+    {"law": 1, "rule": "Every next-step hint is copy-pasteable in full.", "enforcedBy": "tools/lingua/where.py cmd()"},
+    {"law": 2, "rule": "Human-facing lines print the full chapter id; local ids and work-dir keys are file forms.", "enforcedBy": "tools/lingua/author.py apply/gate output"},
+    {"law": 3, "rule": "Exit 0 always states what is now true; silence is never success.", "enforcedBy": "tools/lingua/__main__.py _report"},
+    {"law": 4, "rule": "Every state token printed has a legend.", "enforcedBy": {"file": "tools/lingua/where.py", "line": 17, "quote": "STATE_LEGEND = ("}},
+    {"law": 5, "rule": "One next action, and it agrees with the skills.", "enforcedBy": "tools/lingua/where.py next_action"},
+    {"law": 6, "rule": "Case carries severity: REJECTED/FAILED/HELD block progress.", "enforcedBy": "documented; the code already conformed"},
+    {"law": 7, "rule": "Non-zero-exit problems to stderr; recorded-for-later problems to stdout.", "enforcedBy": "documented; the code already conformed"}
+  ],
+
+  "vocabulary": [
+    {"concept": "a projection of the working language", "say": "dimension", "not": ["mode", "dim"]},
+    {"concept": "a register's election of one", "say": "mode", "scope": "the translation.yaml key only — a machine contract"},
+    {"concept": "one addressable unit of substrate", "say": "entry", "not": ["bit", "card", "item"],
+     "note": "The concept was real and already named in the theory. `bit` was minted in the chroma/viewer layer and is absent from methodology/, from README's vocabulary table, and from datamodel.json's entities. Ratified the concept, retired the word — in prose and new code. The web/ rename and the chroma collection rename are deferred: both touch persisted state.",
+     "expresses": {"file": "methodology/lexicon.md", "line": 11, "quote": "A lexicon entry captures one thing the corpus names"}},
+    {"concept": "the learner's activity", "say": "calibration",
+     "expresses": {"file": "design/datamodel.json", "line": 37, "quote": "The learner's activity"}}
+  ],
+
+  "study": {
+    "commands": ["./ch ask", "./ch grade"],
+    "gradedBy": "the substrate, never an opinion",
+    "verdictIsExitCode": {
+      "file": "tools/lingua/study.py",
+      "line": 17,
+      "quote": "verdict is an exit code"
+    },
+    "reads": ["v<N>/data/*.yaml", "v<N>/chroma/ (a ranking accelerator, never a dependency)"],
+    "writes": ["v<N>/work/calibration.jsonl"],
+    "firstConsumerOf": ["term.aliases", "anchor.curated_against as a human-facing pin"],
+    "closesTheLoop": "A word the lexicon lacks is reported as a substrate gap with a runnable /ch:translate — study failure becomes a production action."
+  },
+
+  "gaps": [
+    "The state line is not in the manifest, so web/ cannot print the byte-identical string. Putting it there means manifest v6 → v7 across tools/lingua/manifest.py, web/lib/content.ts, tests, README and AGENTS.md. Deferred deliberately: this pass changes no machine contract.",
+    "`bit` survives in web/ (navigator-types.ts, /api/bit, CommandPalette) and as the chroma collection name and .bits-fingerprint. Renaming the collection needs a paired fingerprint rename or every existing store breaks.",
+    "The PreToolUse guard that would make the corpora/ invariants enforced rather than restated is not wired; .claude/settings.json still has an empty hooks block. The SessionStart hook ships in the plugin manifest instead.",
+    "Noun-phrase extraction in grade() is n-gram longest-match over surface forms plus a stopword filter. It is deliberately coverage, not grammar, and will be imperfect on long instructions.",
+    "design/datamodel.json and design/ui-map.json carry `source` pointers without `quote`, so the drift test can only check that their files and line ranges still exist. Backfilling quotes would make them content-checkable too.",
+    "The plugin must be installed once by hand (/plugin marketplace add, /plugin install ch@chiron); .claude/skills/ still holds the superseded copies until it resolves."
+  ]
+}

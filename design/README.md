@@ -1,7 +1,7 @@
 # design/ — inputs for the design agent
 
 Machine-readable inputs for a UI/UX design agent optimizing the viewer's typography and
-building a theming system. Two files, two deliberately different views:
+building a theming system. Three files, deliberately different views:
 
 - **`datamodel.json`** — the ideal underlying data model of the linguistic substrate:
   entities, attributes, relationships, enums, caps, and invariants. Modeled on
@@ -24,3 +24,15 @@ Both files are hand-authored. Every claim carries a `file:line` (or `source`) po
 the code or methodology doc it was taken from — checking those pointers is the drift
 test. When `web/app/globals.css`, the manifest contract, or a methodology doc's "Schema
 and caps" section changes, update the corresponding entries here in the same change.
+
+- **`interaction.json`** — the interaction layer: the verb spine, the target
+  grammar, the skill rhythm, the gate object, the next-action ladder, the
+  voice law, and the vocabulary settlement. Its "ideal" counterpart is not
+  another JSON file — the ideal is prose, in `methodology/README.md` and
+  `AGENTS.md`, because a fourth restatement of the theory is the disease this
+  layer treats. What this file adds is the measurement: each surface records
+  what it `expresses` (a pointer into the theory) or what it `contradicts`,
+  plus the standing `gaps`.
+
+`tests/test_design_pointers.py` enforces the drift test on all three: a quote
+that moved lines warns, a quote that vanished fails.
