@@ -1,0 +1,237 @@
+{
+  "version": 1,
+  "title": "chiron viewer as-built UI map",
+  "purpose": "Machine-readable map of the existing web viewer for a design agent optimizing typography and building theming: every surface, how the substrate data is partitioned across surfaces, every distinct text role with its current spec, and the full theme-token inventory. This documents web/ AS IT IS — the ideal data model lives separately in design/datamodel.json (grounded in methodology/, not in these types). Text roles reference datamodel entities via 'binds' and datamodel contentKinds via 'contentKind'.",
+  "stack": {
+    "framework": "Next.js 16 App Router / React 19, all pages force-dynamic (read from disk per request)",
+    "styling": "plain global CSS custom properties in web/app/globals.css (536 lines) + vendored github-markdown-css for article prose",
+    "noTailwind": true,
+    "noCssModules": true,
+    "noCssInJs": true,
+    "noWebfonts": true,
+    "inlineStylesOnlyFor": "pane widths (components/reader/ReaderShell.tsx:360,373)",
+    "importOrder": "github-markdown-css before globals.css so equal-specificity ties go to the app (web/app/layout.tsx:5-7)"
+  },
+  "layout": {
+    "shell": "Three-pane Reeder-style layout mounted once in the root layout: aside.sidebar | section.list-pane | main.article-pane, with draggable pane handles, IJKL/EDAF keymap (web/lib/reader.ts:216-227), pane widths and per-register scope persisted to localStorage",
+    "articleMeasure": "article pane content capped at max-width 860px, padding 26px 34px 64px (globals.css:131)",
+    "responsive": "one breakpoint @media (max-width: 880px): sidebar+list become fixed overlays behind a mobile toggle; article padding 48px 16px; NO type-size changes at any breakpoint (globals.css:523-536)"
+  },
+  "surfaces": [
+    {
+      "id": "sidebar",
+      "kind": "persistent-pane",
+      "component": "web/components/reader/Sidebar.tsx",
+      "displays": ["register.title + register.name (as heading)", "group.label rows with chapter counts", "'All Items' row per register", "wordmark"],
+      "notes": "First pane; data from WorkspaceData (flattened projection of manifest + all three YAMLs, built per request in layout)"
+    },
+    {
+      "id": "list-pane",
+      "kind": "persistent-pane",
+      "component": "web/components/reader/ArticleList.tsx",
+      "displays": ["chapter.title, chapter.number, per-chapter counts (terms defined, phrases)", "group.label as sticky section headers and row eyebrows"],
+      "notes": "Second pane; rows scoped to the active register/group scope"
+    },
+    {
+      "id": "corpora-index",
+      "kind": "route",
+      "route": "/",
+      "file": "web/app/page.tsx",
+      "displays": ["corpus.title", "register.name + register.label", "totals line per register ('131 terms · 98 phrases · 130 relations')"],
+      "notes": "One .dimension-card link per (corpus, register); empty state is prose with inline code shell commands"
+    },
+    {
+      "id": "register-hub",
+      "kind": "route",
+      "route": "/[corpus]/[register]",
+      "file": "web/app/[corpus]/[register]/page.tsx",
+      "displays": ["register.title + name + label", "totals line + keyboard hint", "mode badges: tracked dimensions as .mini-badge, recorded modes as '<slug> (recorded)' dashed badges"],
+      "notes": "Deliberately NOT a browse surface for the linguistic structure (comment at page.tsx:23-25)"
+    },
+    {
+      "id": "group-landing",
+      "kind": "route",
+      "route": "/[corpus]/[register]/[group]",
+      "file": "web/app/[corpus]/[register]/[group]/page.tsx",
+      "displays": ["group.label as h1 (accent-underlined)", "'N chapters · corpus · register' meta", "per-dimension state summary: dimension.label + status dots with counts per state (ok/stale/none)"]
+    },
+    {
+      "id": "chapter",
+      "kind": "route",
+      "route": "/[corpus]/[register]/[group]/[slug]",
+      "file": "web/app/[corpus]/[register]/[group]/[slug]/page.tsx",
+      "displays": ["the generated chapter Markdown body (via MarkdownArticle, .markdown-body.chapter-body with accent top border)", "aside 'Terms in this chapter': TermChip badges for terms_defined + terms_mentioned"],
+      "notes": "THE only long-form surface. The body is a generated extraction summary (tools/lingua/render.py:87-157), not source prose: title, meta line, optional drift callout, 'Terms defined here', 'Terms mentioned', 'Phrasings grounded here', 'Relations', 'Sources'. Frontmatter is parsed and discarded."
+    },
+    {
+      "id": "bit-modal",
+      "kind": "overlay",
+      "component": "web/components/reader/NavigatorPopup.tsx",
+      "displays": ["TermBit: headword + kind badge + definition + aliases + defined-in ref + anchors (cap 3, quotes cap 240) + phrasings (cap 8) + relations both directions (cap 10)", "PhraseBit: phrase + intent + template + linked term chips + anchors", "RelationsBit: all edges of one type, 'from —type→ to: gloss' (cap 12)", "lookup mode: grouped result list (Terms/Phrasings/Relations/Chapters) with reason lines + quoted selection echo"],
+      "notes": "THE ONLY surface for terms, phrases, and relations — no dimension routes exist (deleted in 5cbd6ab, 03fb588). Opened via p/w lookup on a selection, ⌘K palette, or term chips. Supports a dive stack (depth cap 16) with an inner keyboard cursor over cross-references (web/lib/card-refs.ts keeps cursor order locked to visual order)."
+    },
+    {
+      "id": "command-palette",
+      "kind": "overlay",
+      "component": "web/components/reader/CommandPalette.tsx",
+      "displays": ["flat searchable index over: pages (index/hubs/groups), chapters, terms, phrases, relation types — glyph + label + right-aligned muted detail column ('concept · 12-factor-agents/v1')"],
+      "notes": "MAX_RESULTS 40; token-substring scoring; enter navigates or opens the bit modal"
+    }
+  ],
+  "partitioning": {
+    "description": "How substrate data is sliced across surfaces today",
+    "slices": {
+      "sidebar": "registers + groups + counts only (identity and wayfinding; no linguistic content)",
+      "list-pane": "chapters of the active scope: title, number, defined-term and phrase counts (mentions excluded from counts, web/lib/workspace.ts:75)",
+      "article-pane": "exactly one chapter's generated markdown + a terms-in-chapter chip strip",
+      "bit-modal": "fully materialized, capped flashcards assembled server-side per request (web/lib/navigator.ts:351-360 caps: 3 anchors, 240-char quotes, 8 phrasings, 10 relations, 12 edges, 160-char glosses/details)",
+      "command-palette": "identity-only rows for everything (labels + kind + register key; no definitions, no anchors)",
+      "chat-or-agent": "none — no chat surface exists (removed; only the /api/navigate lookup round-trip uses the Agent SDK)"
+    },
+    "notSurfacedAnywhere": [
+      "pipeline-rendered dimension pages: pages/README.md (index with GFM tables), pages/lexicon.md, pages/phrasebook.md, pages/relations.md — manifest declares them, no route reads them",
+      "per-chapter relation lists (the manifest carries only an edge COUNT, so relations cannot be listed per chapter)",
+      "anchors beyond the cap of 3 per card, and every anchor's path + curated_against pin",
+      "corpus.urls, corpus.source_kind, register checkout SHA, chapter.content_hash, chapter.kind, chapter.source_paths (all typed in web/lib/content.ts, never rendered)",
+      "term aliases as search keys (palette matches label text only)",
+      "any cross-register view ('same term in v1 vs v2' has no representation in the data model either)"
+    ]
+  },
+  "components": [
+    { "name": "ReaderShell", "file": "web/components/reader/ReaderShell.tsx", "props": "WorkspaceData + children", "renders": "three-pane shell, keymap, pane handles, mobile toggle, list-pane header strings; hosts palette + navigator overlays" },
+    { "name": "Sidebar", "file": "web/components/reader/Sidebar.tsx", "props": "WorkspaceData, Scope", "renders": "wordmark, register headings, All Items + group rows with counts, empty-state help" },
+    { "name": "ArticleList", "file": "web/components/reader/ArticleList.tsx", "props": "ListRow[], activeHref, header, sub", "renders": "list header, sticky section headers, chapter rows (eyebrow/number/title/meta)" },
+    { "name": "MarkdownArticle", "file": "web/components/MarkdownArticle.tsx", "props": "markdown string, className", "renders": "react-markdown + remark-gfm + rehype-raw + rehypeLiteralUnknowns (unknown raw tags like <type> become literal text); external links target=_blank; the entire GFM element set" },
+    { "name": "NavigatorPopup", "file": "web/components/reader/NavigatorPopup.tsx", "props": "corpus, register, pathname, NavigatorEntry (lookup|bit), onClose", "renders": "lookup result list, flashcards (term/phrase/relations), dive stack, status/error/hint lines; exports captureSelection()" },
+    { "name": "CommandPalette", "file": "web/components/reader/CommandPalette.tsx", "props": "WorkspaceData, openBit, onClose", "renders": "query input, glyph+label+detail rows, hint bar" },
+    { "name": "TermChip", "file": "web/components/reader/TermChip.tsx", "props": "corpus, register, slug, name", "renders": "mini-badge button opening the bit modal; inert span without shell context" }
+  ],
+  "textRoles": [
+    { "id": "chapter-title", "area": "article", "binds": "chapter.title", "contentKind": "headword", "current": { "element": "h1 in .markdown-body", "family": "sans (vendored GitHub stack)", "size": "2em of 16px", "weight": 600, "note": "chrome serif/pine identity deliberately reset inside articles (globals.css:395)" }, "css": "github-markdown-css h1 + web/app/globals.css:395" },
+    { "id": "chapter-meta", "area": "article", "binds": "group.label + chapter.number (+ chapter.kind for 'Code unit · N files')", "contentKind": "label+count", "current": { "element": "bold + '·' separators in first paragraph", "family": "sans", "size": "16px article base" }, "css": "tools/lingua/render.py:91-99 (generated markdown)" },
+    { "id": "chapter-standfirst", "area": "article", "binds": "chapter.description", "contentKind": "prose", "current": { "style": "italic paragraph, the only running prose on the page" }, "css": "generated markdown; vendored em styling" },
+    { "id": "article-section-heading", "area": "article", "binds": "generated section names ('Terms defined here', 'Phrasings grounded here', 'Relations', 'Sources')", "contentKind": "label", "current": { "element": "h2 in .markdown-body", "size": "1.5em of 16px", "weight": 600 }, "css": "github-markdown-css h2" },
+    { "id": "phrase-headword-article", "area": "article", "binds": "phrase.phrase", "contentKind": "headword", "current": { "element": "h3 in .markdown-body", "size": "1.25em of 16px" }, "css": "github-markdown-css h3; no chrome-level h3 rule exists" },
+    { "id": "drift-callout", "area": "article", "binds": "state (stale) + repair commands", "contentKind": "prose+code", "current": { "element": "GFM [!WARNING] blockquote", "size": "14px", "bg": "amber-tinted", "note": "literal '[!WARNING]' first paragraph hidden via blockquote > p:first-child { display: none }" }, "css": "web/app/globals.css:402-411" },
+    { "id": "definition-list-line", "area": "article", "binds": "term.term + term.slug + term.kind + term.definition in one bullet", "contentKind": "headword+identifier+label+prose", "current": { "pattern": "**term** (`slug`, kind) — definition", "note": "four contentKinds mixed in a single line — a key typographic pressure point" }, "css": "generated markdown (tools/lingua/render.py)" },
+    { "id": "alias-note", "area": "article", "binds": "term.aliases", "contentKind": "headword", "current": { "pattern": "trailing italic 'Also known as: …'" }, "css": "generated markdown" },
+    { "id": "intent-line", "area": "article", "binds": "phrase.intent", "contentKind": "prose", "current": { "pattern": "*Intent:* italic label + prose" }, "css": "generated markdown" },
+    { "id": "template-block", "area": "article", "binds": "phrase.template", "contentKind": "code", "current": { "element": "fenced ```text block", "size": "12px vendored mono in article / 13px chrome pre" }, "css": "github-markdown-css pre; chrome pre at globals.css:104-107" },
+    { "id": "inline-code-token", "area": "article+chrome", "binds": "slugs, unit paths, CLI commands, rescued <type>-style literals", "contentKind": "identifier|code", "current": { "size": "13px chrome / 12px vendored article", "family": "mono", "bg": "--inset", "radius": "4px" }, "css": "web/app/globals.css:100-103 + github-markdown-css code" },
+    { "id": "relation-edge-line-article", "area": "article", "binds": "relationEdge.from + type + to + gloss", "contentKind": "headword+label+prose", "current": { "pattern": "**from** —type→ **to**: gloss (non-breaking arrow glyph)" }, "css": "generated markdown" },
+    { "id": "source-attribution", "area": "article", "binds": "chapter.source_url + chapter.unit_paths", "contentKind": "identifier", "current": { "pattern": "external links + inline-code repo paths under '## Sources'" }, "css": "generated markdown" },
+    { "id": "gfm-table", "area": "article", "binds": "register index page tables (currently unrouted)", "contentKind": "mixed", "current": { "note": "styling shipped in github-markdown-css but exercised by no live route" }, "css": "github-markdown-css tables" },
+
+    { "id": "card-headword", "area": "card", "binds": "term.term | phrase.phrase | relationType", "contentKind": "headword", "current": { "selector": ".nav-detail-title", "family": "serif", "size": "20px", "weight": 600, "color": "--pine-dark" }, "css": "web/app/globals.css:301-305" },
+    { "id": "card-kind-badge", "area": "card", "binds": "term.kind", "contentKind": "label", "current": { "selector": ".mini-badge next to headword", "size": "11px", "fg": "--pine-dark", "bg": "--pine-tint", "shape": "pill" }, "css": "web/app/globals.css:451-454" },
+    { "id": "card-definition", "area": "card", "binds": "term.definition", "contentKind": "prose", "current": { "selector": ".nav-detail-def", "size": "15px", "lineHeight": 1.6, "note": "the card's only comfortable-reading block" }, "css": "web/app/globals.css:309" },
+    { "id": "card-intent", "area": "card", "binds": "phrase.intent", "contentKind": "prose", "current": { "selector": ".nav-detail-intent", "size": "14.5px", "style": "italic", "color": "--muted" }, "css": "web/app/globals.css:314-317" },
+    { "id": "card-section-label", "area": "card", "binds": "section names (Anchors, Phrasings, Relations, Template, Terms)", "contentKind": "label", "current": { "selector": ".nav-detail-sub", "size": "11px", "weight": 600, "transform": "uppercase" }, "css": "web/app/globals.css:310-313" },
+    { "id": "anchor-quote", "area": "card", "binds": "anchor.quote (verbatim, server-truncated 240)", "contentKind": "quote", "current": { "selector": "blockquote.anchor-quote", "size": "13.5px", "bg": "--well", "rule": "3px --pine-tint left", "note": "must read as EVIDENCE; visually distinct from the amber drift callout, the only other blockquote" }, "css": "web/app/globals.css:498-502" },
+    { "id": "anchor-provenance", "area": "card", "binds": "anchor.chapter → chapter.title (linked when it resolves)", "contentKind": "label", "current": { "style": "small muted line above each quote" }, "css": "web/components/reader/NavigatorPopup.tsx AnchorSection" },
+    { "id": "card-defined-in", "area": "card", "binds": "term.defined_in → chapter.title", "contentKind": "label", "current": { "selector": ".nav-detail-source", "pattern": "'defined in {chapter}' chapter ref" }, "css": "web/components/reader/NavigatorPopup.tsx:163-324" },
+    { "id": "card-phrasing-row", "area": "card", "binds": "phrase.phrase + phrase.intent (reverse join on TermBit)", "contentKind": "headword+prose", "current": { "selector": ".nav-phrasing-row", "size": "13.5px", "pattern": "bold phrase + em-dash muted intent" }, "css": "web/app/globals.css:326-327" },
+    { "id": "card-relation-line", "area": "card", "binds": "relationEdge (both directions on TermBit)", "contentKind": "headword+label+prose", "current": { "selector": ".relation-line", "size": "14px", "rule": "bottom hairline", "edgeType": ".nav-edge-type in --pine, white-space nowrap" }, "css": "web/app/globals.css:513-519,337" },
+    { "id": "card-template", "area": "card", "binds": "phrase.template", "contentKind": "code", "current": { "selector": "pre.phrase-template > code", "family": "mono", "bg": "--inset" }, "css": "web/app/globals.css (survivor of deleted dimension pages)" },
+    { "id": "card-overflow-line", "area": "card", "binds": "capped-list remainders (totalAnchors, morePhrasings, moreRelations, more)", "contentKind": "count+prose", "current": { "pattern": "muted 'and N more phrasings.'" }, "css": "web/components/reader/NavigatorPopup.tsx" },
+    { "id": "cross-reference", "area": "card", "binds": "any BitRef or chapter href inside a card", "contentKind": "interactive", "current": { "selector": ".nav-ref", "cursor": "box-shadow halo (.sel) so cursor moves without layout shift" }, "css": "web/app/globals.css + web/lib/card-refs.ts (visual-order index)" },
+    { "id": "selection-echo", "area": "card", "binds": "the user's captured text selection", "contentKind": "quote", "current": { "selector": ".navigator-selection", "size": "13px", "style": "italic, curly quotes, single-line ellipsis at 120 chars", "color": "--muted" }, "css": "web/app/globals.css:266-270" },
+    { "id": "lookup-group-heading", "area": "card", "binds": "result groups (Terms / Phrasings / Relations / Chapters)", "contentKind": "label", "current": { "selector": ".nav-section", "size": "11px", "weight": 600, "transform": "uppercase" }, "css": "web/app/globals.css:273-277" },
+    { "id": "lookup-result-row", "area": "card", "binds": "Destination title + detail (LLM reason line, cap 160)", "contentKind": "headword+prose", "current": { "selector": ".nav-title / .nav-detail", "size": "13.5px/600 title, 12.5px muted detail" }, "css": "web/app/globals.css:285-286" },
+
+    { "id": "wordmark", "area": "chrome", "binds": "the product name", "contentKind": "headword", "current": { "selector": ".side-brand a", "family": "serif", "size": "21px", "weight": 700 }, "css": "web/app/globals.css:160-163" },
+    { "id": "register-heading", "area": "chrome", "binds": "register.title + register.name", "contentKind": "label", "current": { "selector": ".side-heading", "size": "11px", "weight": 600, "tracking": ".05em", "transform": "uppercase", "color": "--muted", "overflow": "ellipsis" }, "css": "web/app/globals.css:171-176" },
+    { "id": "nav-label", "area": "chrome", "binds": "group.label + 'All Items'", "contentKind": "label", "current": { "selector": ".side-row/.side-label", "size": "13.5px", "activeWeight": 600 }, "css": "web/app/globals.css:178-188" },
+    { "id": "numeric-count", "area": "chrome", "binds": "chapter counts, totals, chapter.number", "contentKind": "count", "current": { "selectors": ".side-count 12.5px / .list-row-num 12px / .list-section-count", "figures": "tabular-nums" }, "css": "web/app/globals.css:189-192,235-238" },
+    { "id": "list-header", "area": "chrome", "binds": "active scope title + 'N chapters' sub", "contentKind": "label", "current": { "selector": ".list-header h2", "family": "sans (deliberately NOT the serif h2)", "size": "15px", "weight": 700 }, "css": "web/app/globals.css:205-208" },
+    { "id": "list-section-header", "area": "chrome", "binds": "group.label", "contentKind": "label", "current": { "selector": ".list-section", "size": "11px", "weight": 600, "tracking": ".06em", "transform": "uppercase", "position": "sticky" }, "css": "web/app/globals.css:213-219" },
+    { "id": "list-row-title", "area": "chrome", "binds": "chapter.title", "contentKind": "headword", "current": { "selector": ".list-row-title", "size": "13.5px", "weight": 600, "lineHeight": 1.35, "clamp": "2 lines" }, "css": "web/app/globals.css:239-243" },
+    { "id": "list-row-eyebrow", "area": "chrome", "binds": "group.label", "contentKind": "label", "current": { "selector": ".list-row-source", "size": "10px", "weight": 600, "tracking": ".06em", "transform": "uppercase" }, "css": "web/app/globals.css:230-234" },
+    { "id": "list-row-meta", "area": "chrome", "binds": "per-chapter counts ('N terms', 'N phrases')", "contentKind": "count+label", "current": { "selector": ".list-row-meta", "size": "11.5px", "color": "--muted" }, "css": "web/app/globals.css:244-247" },
+    { "id": "kind-glyph", "area": "chrome", "binds": "entity kinds in palette/navigator (▸ page, ¶ chapter, ◇ term, ❝ phrase, ⇢ relation, ☰ menu)", "contentKind": "label", "current": { "note": "single-character typographic marks used as icons — no icon font or SVG set" }, "css": "web/components/reader/CommandPalette.tsx:.palette-glyph" },
+    { "id": "palette-input", "area": "chrome", "binds": "user query", "contentKind": "prose", "current": { "selector": ".palette-input", "size": "14px", "family": "--sans", "placeholder": "Go to chapter, term, phrasing…" }, "css": "web/app/globals.css:363-367" },
+    { "id": "palette-row", "area": "chrome", "binds": "PaletteItem label + right-aligned detail ('concept · 12-factor-agents/v1')", "contentKind": "headword+label", "current": { "sizes": "13px label / 11px muted detail" }, "css": "web/app/globals.css:369-379" },
+    { "id": "badge", "area": "chrome", "binds": "dimension labels, term.kind, term chips", "contentKind": "label", "current": { "selector": ".mini-badge", "size": "11px", "fg": "--pine-dark", "bg": "--pine-tint", "shape": "pill", "variants": { "recorded": "dashed muted outline", "term-chip": "interactive button; hover inverts to --pine with --on-accent text" } }, "css": "web/app/globals.css:451-462" },
+    { "id": "status-dot", "area": "chrome", "binds": "state.value (ok/stale/none) with inline counts", "contentKind": "label+count", "current": { "size": "9px circle (8px on group landing)", "colors": "pine family / amber / --dot-none" }, "css": "web/app/globals.css:.status-dot" },
+    { "id": "keyboard-hint", "area": "chrome", "binds": "key legends ('↑↓ navigate · ↵ open · esc close')", "contentKind": "label", "current": { "selectors": ".navigator-hint / .palette-hint", "size": "11px", "color": "--muted" }, "css": "web/app/globals.css:350-353,381-384" },
+    { "id": "status-text", "area": "chrome", "binds": "transient states ('looking up…', 'finding pages…')", "contentKind": "prose", "current": { "selector": ".navigator-status", "convention": "lowercase" }, "css": "web/components/reader/NavigatorPopup.tsx" },
+    { "id": "error-retry", "area": "chrome", "binds": "lookup failures", "contentKind": "prose", "current": { "selector": ".navigator-error + .navigator-retry", "style": "amber-tinted bar with left rule + inline button" }, "css": "web/app/globals.css" },
+    { "id": "empty-state", "area": "chrome", "binds": "onboarding help (mount commands)", "contentKind": "prose+code", "current": { "selectors": ".side-empty / index empty state / .palette-empty", "note": "prose carrying inline code shell commands" }, "css": "web/app/globals.css" },
+    { "id": "big-numeral", "area": "chrome", "binds": "register totals on index cards", "contentKind": "count", "current": { "selector": ".dimension-card-count", "size": "22px", "weight": 600, "head": ".dimension-card-head serif 16px --pine-dark" }, "css": "web/app/globals.css:475-479" },
+    { "id": "chapter-terms-chips", "area": "chrome", "binds": "chapter.defines + mentions → term chips under the article", "contentKind": "label", "current": { "container": "aside.card.chapter-terms, 14px prose + .mini-badge.term-chip strip" }, "css": "web/app/globals.css:430-431" }
+  ],
+  "theme": {
+    "fonts": {
+      "--serif": "\"Iowan Old Style\", Georgia, \"Times New Roman\", serif",
+      "--sans": "ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+      "--mono": "ui-monospace, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace",
+      "source": "web/app/globals.css:38-40; no webfonts loaded anywhere"
+    },
+    "roleOfFaces": {
+      "serif": "identity face: wordmark, chrome h1/h2, card headwords, index card heads — always paired with --pine-dark",
+      "sans": "everything else, including ALL article prose (chrome serif identity is reset inside .markdown-body, globals.css:395)",
+      "mono": "code, templates, identifiers"
+    },
+    "scales": {
+      "chrome": "body 15px/1.55 --sans; h1 28px, h2 19px (serif, --pine-dark, 600); code/pre 13px; NO h3–h6 rules (globals.css:78-107)",
+      "article": "vendored .markdown-body 16px/1.5 GitHub sans; em-relative headings h1 2em … h6 .85em / 600 / lh 1.25; code 12px",
+      "note": "two unreconciled scales — the central typographic tension"
+    },
+    "tokens": {
+      "source": "web/app/globals.css:10-72; dark values swap the same custom properties under @media (prefers-color-scheme: dark)",
+      "light": {
+        "--pine": "#1f5d4c", "--pine-dark": "#174538", "--pine-tint": "#d9e5df",
+        "--amber": "#c17c3a", "--amber-dark": "#96602c", "--amber-tint": "#f0dcc3",
+        "--accent-3": "#6b8f83",
+        "--bg-sidebar": "#ececec", "--bg-list": "#ffffff", "--bg-article": "#ffffff",
+        "--paper": "#ffffff", "--inset": "#f0f0f0", "--well": "#f6f6f6",
+        "--edge": "#dcdcdc", "--edge-soft": "#e8e8e8",
+        "--ink": "#1c1c1e", "--muted": "#8a8a8e", "--sel": "#dde8e2",
+        "--hover": "rgba(0, 0, 0, 0.045)", "--dot-none": "#c9c9cd", "--on-accent": "#ffffff",
+        "--backdrop": "rgba(20, 20, 22, 0.35)", "--backdrop-deep": "rgba(20, 20, 22, 0.55)", "--shadow": "rgba(20, 20, 22, 0.18)"
+      },
+      "dark": {
+        "--pine": "#6fb096", "--pine-dark": "#9ccdb9", "--pine-tint": "#25382f",
+        "--amber": "#cf9a62", "--amber-dark": "#e0b184", "--amber-tint": "#3a2f21",
+        "--accent-3": "#7fa294",
+        "--bg-sidebar": "#1c1c1e", "--bg-list": "#161618", "--bg-article": "#0d1117",
+        "--paper": "#161b22", "--inset": "#21262d", "--well": "#1b2026",
+        "--edge": "#30363d", "--edge-soft": "#262c33",
+        "--ink": "#e6e6e6", "--muted": "#8b8b90", "--sel": "#263a31",
+        "--hover": "rgba(255, 255, 255, 0.05)", "--dot-none": "#4a5148", "--on-accent": "#12201a",
+        "--backdrop": "rgba(0, 0, 0, 0.55)", "--backdrop-deep": "rgba(0, 0, 0, 0.75)", "--shadow": "rgba(0, 0, 0, 0.5)"
+      },
+      "semantics": {
+        "pine family": "identity + interactive: links, headings, selection, focus ring, badges, anchor-quote rule",
+        "amber family": "warning/drift: callouts, stale dots, error bars",
+        "surfaces": "sidebar (gray) / list (white-ish) / article (pinned to github-markdown-css bg) / paper (cards) / inset (code) / well (quotes)",
+        "ink/muted": "two-step text hierarchy — there is no third text color"
+      }
+    },
+    "accents": {
+      "mechanism": "group position within its corpus mod 5 → .accent-0…4 sets --accent (web/lib/content.ts:132-143, globals.css:423-427)",
+      "mapping": { "accent-0": "var(--pine)", "accent-1": "var(--amber)", "accent-2": "var(--pine-dark)", "accent-3": "var(--accent-3)", "accent-4": "var(--amber-dark)" },
+      "consumers": ["chapter body 4px top border (globals.css:398-401)", "group-landing h1 3px underline (globals.css:442-446)"]
+    },
+    "darkMode": {
+      "mechanism": "prefers-color-scheme only, declared independently in globals.css:43 and vendored github-markdown.css:14",
+      "noToggle": true,
+      "seams": [
+        "--bg-article pinned to github-markdown-css's background in both schemes so pane and markdown never seam (globals.css:21,55)",
+        "github-markdown-css ships unused [data-theme=dark]/[data-theme=light] hooks — the obvious seam for an explicit theme toggle",
+        "no color-scheme declaration on :root"
+      ]
+    }
+  },
+  "gaps": [
+    "Two unreconciled type scales: chrome 15px base with serif/pine headings vs article 16px vendored GitHub sans with em-relative headings; the reset at globals.css:395 kills the identity face inside articles.",
+    "No h3–h6 rules at chrome level — cards and chrome never use heading elements below h2, and the vendored rules only apply inside .markdown-body.",
+    "No explicit theme toggle path: prefers-color-scheme only; the vendored [data-theme] hooks are unused; nothing sets color-scheme.",
+    "~40 lines of dead CSS from the removed dimension pages (globals.css:482-519: .term-detail, .term-slug, .anchor-list, …); survivors still used are .anchor-quote, .phrase-template, .relation-list, .relation-line.",
+    "GFM table styling shipped but unexercised — the only tables live in the unrouted pages/README.md.",
+    "Pipeline renders pages/{README,lexicon,phrasebook,relations}.md and the manifest declares them, but no route or loader in web/ reads corpus.pages at all; lib/reader.ts and lib/dimensions.ts still carry segment logic anticipating /lexicon|/phrasebook|/relations URLs that 404.",
+    "Manifest fields typed but never rendered: corpus.urls, source_kind, checkout, chapter.content_hash, chapter.kind, source_paths, anchor.path, anchor.curated_against — provenance the UI currently hides.",
+    "Type sizes never change at the one responsive breakpoint (880px).",
+    "No third text color: ink/muted is the entire text hierarchy outside the pine/amber identity colors."
+  ]
+}

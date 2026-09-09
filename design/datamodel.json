@@ -1,0 +1,299 @@
+{
+  "version": 1,
+  "title": "chiron linguistic-substrate datamodel",
+  "purpose": "Machine-readable description of the ideal underlying data model of the chiron linguistic substrate, for consumption by a design agent optimizing typography and building a theming system. Every attribute carries a contentKind so type decisions can be made from what the text IS (prose, headword, identifier, verbatim quote, numeral) rather than from any current CSS.",
+  "authority": {
+    "modeledOn": [
+      "methodology/README.md",
+      "methodology/lexicon.md",
+      "methodology/phrasebook.md",
+      "methodology/concept-relations.md"
+    ],
+    "capsMirror": "tools/lingua/dimensions/{lexicon,phrasebook,relations}.py validate_payload — each methodology doc's 'Schema and caps' section mirrors its dimension's validator by project contract",
+    "note": "This file follows the methodology (the theory), NOT the current web viewer's types. The as-built UI is described separately in design/ui-map.json; the two are intentionally different views."
+  },
+  "contentKinds": {
+    "prose": "Running text meant to be read: definitions, glosses, intents, descriptions. Wants a comfortable reading measure and line height.",
+    "headword": "The canonical display form of a named thing (term, phrase, title). Set as an entry heading; the corpus's spelling wins, even when unusual.",
+    "label": "Short UI-facing name for a container or category (group label, dimension label, kind badge). Scannable, often uppercase/tracked in chrome.",
+    "identifier": "Machine-facing slug, id, hash, or path. Monospace-leaning; must never wrap mid-token; lowercase-kebab by law.",
+    "code": "Text meant to be pasted into a prompt or terminal, or read as source (templates with {slots}, commands). Monospace block.",
+    "quote": "Verbatim source material, mechanically verified against the corpus. Must visually read as evidence — distinct from any paraphrase or callout.",
+    "count": "Numeral (totals, chapter numbers, cardinalities). Wants tabular figures."
+  },
+  "vocabulary": {
+    "corpus": "Any git repo or folder mounted as learning material — a documented course or an undocumented codebase. The unit that HAS a working language. Deliberately not 'course'.",
+    "register": "One retelling of the same material under its own translation requirements (v1, v2, …). The linguistics sense: a variety of language for a setting. Two registers are two ways of speaking about one source, not two revisions. Deliberately not 'iteration' or 'version'.",
+    "group": "An ordered section within a corpus. Deliberately not 'tier', 'module', or 'section'.",
+    "chapter": "One coherent unit of material — a document, or a coherent code unit. The unit of anchoring, of authoring, and of drift. Deliberately not 'lesson'.",
+    "dimension": "One orthogonal projection of the corpus's working language. dimension = mode slug = methodology doc = dimension module: the same string names all of them.",
+    "mode": "A slug a register elects in translation.yaml. 'implemented' modes have machinery; 'recorded' modes have only a written methodology — the entry path for new dimensions.",
+    "substrate": "The extracted linguistic data as a whole. Explicitly not a summary: it answers 'what is this called here', 'how do I say it', 'how do the names relate'.",
+    "grounding": "Every claim traceable to a verbatim quote in the material, enforced by tooling. If the chapter doesn't say it, it does not go in; where the chapter and outside knowledge disagree, the chapter wins.",
+    "anchor": "The grounding primitive: a verbatim quote from a chapter, pinned to the content hash the quote was authored against.",
+    "drift": "Two linked senses. Instructional drift: generic phrasing forces an agent to guess the mapping. Substrate drift: source content changing under an anchor, so its pin no longer matches — detected per anchor, never per corpus.",
+    "define-vs-mention": "A term is DEFINED in exactly one chapter (defined_in) and MENTIONED everywhere else it is anchored. Writes declare which: define:true upserts the full entry; define:false contributes anchors only.",
+    "translation": "The extraction act — retelling the corpus into the substrate under the register's recorded requirements.",
+    "calibration": "The learner's activity: adjusting their own language against the substrate until instructions transfer without lookup."
+  },
+  "entities": {
+    "corpus": {
+      "description": "Mounted material with a working language. Owns one source/ checkout shared by all registers.",
+      "identity": ["name"],
+      "attributes": {
+        "name": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[a-z0-9][a-z0-9-]*$" }, "notes": "Directory id under corpora/; must not look like a register (vN)." },
+        "title": { "type": "string", "required": true, "contentKind": "headword", "notes": "Display title from corpus.yaml." },
+        "checkout": { "type": "string", "required": true, "contentKind": "identifier", "notes": "Git short SHA of source/, or 'unknown' for non-repos." },
+        "urls": { "type": "map<string,string>", "required": false, "contentKind": "identifier", "notes": "e.g. {site, repo} — upstream locations." },
+        "origin": { "type": "string", "required": false, "contentKind": "identifier", "notes": "Where the corpus was mounted from." },
+        "source_kind": { "type": "enum:sourceKind", "required": true, "contentKind": "label", "notes": "Set by the register's adapter." }
+      },
+      "relationships": {
+        "registers": { "target": "register", "cardinality": "1:N", "ordered": true, "notes": "Each register is an independent retelling; re-mounting creates the next one." },
+        "source": { "target": "(source checkout)", "cardinality": "1:1", "notes": "corpora/<name>/source/ — read-only material shared by ALL registers." }
+      },
+      "source": "tools/lingua/model.py:76-91, tools/lingua/corpora.py:41-71"
+    },
+    "register": {
+      "description": "One retelling of the corpus under its own translation requirements. Owns its data/*.yaml (one file per implemented dimension), pages/, and adapter. A HARD BOUNDARY: nothing in a register's data references another register — every cross-reference is a register-local id.",
+      "identity": ["corpus.name", "name"],
+      "attributes": {
+        "name": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^v[1-9][0-9]*$" }, "notes": "v1, v2, … Registers are retellings, not versions." },
+        "label": { "type": "string", "required": false, "contentKind": "prose", "caps": { "singleLine": true }, "notes": "One-line description of this retelling, e.g. 'essays + 2025-05 workshop'." },
+        "modes": { "type": "list<slug>", "required": true, "contentKind": "identifier", "caps": { "minItems": 1, "unique": true, "pattern": "^[a-z0-9][a-z0-9-]*$" }, "notes": "The dimensions this register elects. An unselected mode is not tracked at all — no data file, no state, no coverage pressure." },
+        "notes": { "type": "string", "required": false, "contentKind": "prose", "notes": "Free text steering the authoring agents." }
+      },
+      "relationships": {
+        "corpus": { "target": "corpus", "cardinality": "N:1" },
+        "groups": { "target": "group", "cardinality": "1:N", "ordered": true, "notes": "Order drives section order everywhere." },
+        "chapters": { "target": "chapter", "cardinality": "1:N", "ordered": true },
+        "modes": { "target": "mode", "cardinality": "1:N", "notes": "Each mode resolves to an implemented dimension or stays recorded." },
+        "terms": { "target": "term", "cardinality": "1:N", "notes": "The lexicon: data/lexicon.yaml, keyed by slug." },
+        "phrases": { "target": "phrase", "cardinality": "1:N", "notes": "The phrasebook: data/phrasebook.yaml, keyed by slug." },
+        "edges": { "target": "relationEdge", "cardinality": "1:N", "notes": "Concept relations: data/relations.yaml, a flat edge list." }
+      },
+      "source": "tools/lingua/translation.py:30-121, tools/lingua/corpora.py:4-33, methodology/README.md:44-48"
+    },
+    "group": {
+      "description": "An ordered section within a corpus's chapters.",
+      "identity": ["register", "id"],
+      "attributes": {
+        "id": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[a-z0-9-]+$" }, "notes": "Reserved ids rejected at scan (they would shadow viewer routes): lexicon, phrasebook, relations, concept-relations, chat, api, assets." },
+        "label": { "type": "string", "required": true, "contentKind": "label" }
+      },
+      "relationships": {
+        "chapters": { "target": "chapter", "cardinality": "1:N", "ordered": true }
+      },
+      "source": "tools/lingua/model.py:19-32, tools/lingua/corpora.py:211-216"
+    },
+    "chapter": {
+      "description": "One coherent unit of material: a single document (kind=doc) or a coherent code unit (kind=code). THE unit of anchoring, authoring, and drift. Two id forms exist: the global id '<corpus>/<vN>/<group>/<NN>' and the register-local id '<group>/<NN>' — anchors and defined_in always use the local form.",
+      "identity": ["register", "group.id", "number"],
+      "attributes": {
+        "number": { "type": "string", "required": true, "contentKind": "count", "notes": "Ordering token within the group: '01', '02b'. Displayed as a numeral; wants tabular figures." },
+        "slug": { "type": "string", "required": true, "contentKind": "identifier", "notes": "Page filename stem / URL segment." },
+        "title": { "type": "string", "required": true, "contentKind": "headword" },
+        "description": { "type": "string", "required": false, "contentKind": "prose", "notes": "One-line standfirst." },
+        "kind": { "type": "enum:chapterKind", "required": true, "contentKind": "label", "notes": "Changes validation: anchors into a code chapter must name a path." },
+        "unit_paths": { "type": "list<path>", "required": true, "contentKind": "identifier", "notes": "Ordered files constituting the chapter — a doc chapter has exactly one, a code chapter all included files. Anchor quotes are verified against exactly these files." },
+        "primary_path": { "type": "path", "required": false, "contentKind": "identifier", "notes": "The unit's entry point (the doc itself, or README/__init__/entry file)." },
+        "source_url": { "type": "url", "required": false, "contentKind": "identifier", "notes": "Upstream location, if known." },
+        "content_hash": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[0-9a-f]{12}$" }, "notes": "The drift pin. Computed from COMMITTED git blobs, not the working tree, so local edits never falsely flag drift." }
+      },
+      "relationships": {
+        "group": { "target": "group", "cardinality": "N:1" },
+        "defines": { "target": "term", "cardinality": "1:N", "notes": "Inverse of term.defined_in — exactly one chapter owns each term's definition." },
+        "anchors": { "target": "anchor", "cardinality": "1:N", "notes": "Every anchor names exactly one chapter (its local id); a chapter that changes marks exactly its own anchors stale." }
+      },
+      "source": "tools/lingua/model.py:35-73, tools/lingua/gittree.py:79-118"
+    },
+    "dimension": {
+      "description": "One orthogonal projection of the working language. First-class and closed: each is one mode slug + one methodology doc + one implementation module, all named by the same string. Registry order is semantic, not cosmetic — lexicon comes first because the other two reference its slugs; authoring and display both follow it.",
+      "identity": ["slug"],
+      "attributes": {
+        "slug": { "type": "string", "required": true, "contentKind": "identifier" },
+        "label": { "type": "string", "required": true, "contentKind": "label" },
+        "dataFilename": { "type": "string", "required": true, "contentKind": "identifier", "notes": "Explicit because it is the one divergence from 'the three names are the same string': concept-relations stores relations.yaml." },
+        "methodologyDoc": { "type": "path", "required": true, "contentKind": "identifier" },
+        "noun": { "type": "string", "required": true, "contentKind": "prose", "notes": "How the dimension describes itself in a sentence." },
+        "countNoun": { "type": "string", "required": true, "contentKind": "label", "notes": "The word used with totals: '131 terms'." }
+      },
+      "instances": [
+        { "slug": "lexicon", "label": "Lexicon", "dataFilename": "lexicon.yaml", "methodologyDoc": "methodology/lexicon.md", "noun": "lexicon (terms, names, identifiers)", "countNoun": "terms", "answers": "What is this called here?" },
+        { "slug": "phrasebook", "label": "Phrasebook", "dataFilename": "phrasebook.yaml", "methodologyDoc": "methodology/phrasebook.md", "noun": "phrasebook (canonical phrasings)", "countNoun": "phrases", "answers": "How do I say it when instructing an agent?" },
+        { "slug": "concept-relations", "label": "Concept relations", "dataFilename": "relations.yaml", "methodologyDoc": "methodology/concept-relations.md", "noun": "concept relations (typed links between terms)", "countNoun": "relations", "answers": "How do the names relate?" }
+      ],
+      "source": "methodology/README.md:36-48, tools/lingua/dimensions/__init__.py:13-27"
+    },
+    "mode": {
+      "description": "A register's election of a dimension slug in translation.yaml. An OPEN set: any slug matching the pattern may be recorded; the closed subset with machinery is the dimension registry. A recorded mode (methodology written, no implementation) is how a new dimension enters the system — write the plan first, ship the machinery when it earns it.",
+      "identity": ["register", "slug"],
+      "attributes": {
+        "slug": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[a-z0-9][a-z0-9-]*$" } },
+        "status": { "type": "enum: implemented | recorded", "required": true, "contentKind": "label", "notes": "implemented ⟺ slug in the dimension registry. Recorded modes are surfaced (badged) but nothing renders their data — there is none." }
+      },
+      "relationships": {
+        "dimension": { "target": "dimension", "cardinality": "N:0..1", "notes": "Resolves only when implemented." }
+      },
+      "source": "methodology/README.md:44-48, tools/lingua/translation.py:39-94, tools/lingua/status.py:42-49"
+    },
+    "term": {
+      "description": "One thing the corpus names: the canonical surface form, what kind of name it is, a definition in the corpus's own words, and anchors proving the corpus really says this. The definition is deliberately short — the lexicon teaches NAMING, not the material itself. Register-scoped entity (one entry per concept however many chapters touch it); chapter-scoped writes — mirroring how vocabulary lives in a repository: defined once, used everywhere.",
+      "identity": ["register", "slug"],
+      "attributes": {
+        "slug": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[a-z0-9][a-z0-9-]*$" }, "notes": "Reused, never re-minted: the slug index exists so authors reuse slugs instead of forking them." },
+        "term": { "type": "string", "required": true, "contentKind": "headword", "caps": { "maxLength": 80, "singleLine": true }, "notes": "The corpus's spelling wins, even when it is unusual." },
+        "kind": { "type": "enum:termKind", "required": true, "contentKind": "label", "notes": "What kind of name this is. Rendered as a badge next to the headword." },
+        "definition": { "type": "string", "required": true, "contentKind": "prose", "caps": { "maxLength": 400, "multiLine": true }, "notes": "In the corpus's own words; keeps concrete details that make the term usable in a prompt (signatures, defaults, file locations)." },
+        "aliases": { "type": "list<string>", "required": false, "contentKind": "headword", "caps": { "maxItems": 6, "itemMaxLength": 80, "singleLine": true }, "notes": "Competing spellings the corpus also uses." },
+        "defined_in": { "type": "chapterLocalId", "required": true, "contentKind": "identifier", "notes": "Exactly one owning chapter. Stamped by the writer from define:true payloads — never authored directly." },
+        "anchors": { "type": "list<anchor>", "required": true, "contentKind": "quote", "caps": { "minItems": 1, "maxItems": 8 }, "notes": "Across ALL chapters that define or mention the term." }
+      },
+      "relationships": {
+        "definedIn": { "target": "chapter", "cardinality": "N:1", "notes": "One definition per term per register; cross-chapter redefinition is human-gated." },
+        "mentionedIn": { "target": "chapter", "cardinality": "N:M", "notes": "Derived: every chapter appearing in anchors other than defined_in." },
+        "phrasings": { "target": "phrase", "cardinality": "N:M", "notes": "Inverse of phrase.terms." },
+        "edges": { "target": "relationEdge", "cardinality": "N:M", "notes": "As from- or to-endpoint; direction is semantic." }
+      },
+      "source": "methodology/lexicon.md:11-89, tools/lingua/dimensions/lexicon.py:24-33,79-154"
+    },
+    "phrase": {
+      "description": "One canonical phrasing — a fixed way the corpus combines its names. The verb tells the agent which operation, the preposition which relationship. No ownership concept: content is last-writer-wins; the validator loop polices quality.",
+      "identity": ["register", "slug"],
+      "attributes": {
+        "slug": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[a-z0-9][a-z0-9-]*$" } },
+        "phrase": { "type": "string", "required": true, "contentKind": "headword", "caps": { "maxLength": 160, "singleLine": true }, "notes": "The collocation as the corpus uses it." },
+        "intent": { "type": "string", "required": true, "contentKind": "prose", "caps": { "maxLength": 160, "singleLine": true }, "notes": "When a learner reaches for this phrasing." },
+        "template": { "type": "string", "required": false, "contentKind": "code", "caps": { "maxLength": 300, "multiLine": true }, "notes": "An instruction with {slots} the learner fills — something to paste into a prompt. Slots are unparsed free text." },
+        "terms": { "type": "list<term.slug>", "required": true, "contentKind": "identifier", "caps": { "minItems": 1 }, "notes": "Every slug must already exist: lexicon before phrasebook." },
+        "anchors": { "type": "list<anchor>", "required": true, "contentKind": "quote", "caps": { "minItems": 1, "maxItems": 8 } }
+      },
+      "relationships": {
+        "terms": { "target": "term", "cardinality": "N:M", "notes": "A dangling reference (term later removed) is a warning, not drift — deliberately weaker than the edge rule." },
+        "anchoredIn": { "target": "chapter", "cardinality": "N:M", "notes": "Via anchors." }
+      },
+      "source": "methodology/phrasebook.md:5-69, tools/lingua/dimensions/phrasebook.py:24-146"
+    },
+    "relationEdge": {
+      "description": "One typed, directed edge between two lexicon terms, with a one-line gloss and anchors proving the corpus asserts the link. Names alone are a bag of words; relations are what make multi-step instructions coherent — you can only say 'wire X into Y' correctly if you know X feeds Y and not the reverse. Edges have no slug: identity is the composite (from, type, to), so parallel edges of different types between the same pair are legal.",
+      "identity": ["register", "from", "type", "to"],
+      "attributes": {
+        "from": { "type": "term.slug", "required": true, "contentKind": "identifier", "notes": "The actor/source. Must exist in the lexicon." },
+        "to": { "type": "term.slug", "required": true, "contentKind": "identifier", "notes": "The target. Must exist and differ from 'from' — no self-loops." },
+        "type": { "type": "enum:relationType", "required": true, "contentKind": "label", "notes": "Closed by design so viewer and learning agent can rely on edge semantics; extending it is a deliberate change (one line of code plus the methodology doc), not a per-entry choice." },
+        "gloss": { "type": "string", "required": true, "contentKind": "prose", "caps": { "maxLength": 200, "singleLine": true }, "notes": "Written to read left-to-right along the edge direction." },
+        "anchors": { "type": "list<anchor>", "required": true, "contentKind": "quote", "caps": { "minItems": 1, "maxItems": 8 }, "notes": "A second chapter anchoring the same edge merges its anchors in; gloss is last-writer-wins." }
+      },
+      "relationships": {
+        "from": { "target": "term", "cardinality": "N:1" },
+        "to": { "target": "term", "cardinality": "N:1" },
+        "anchoredIn": { "target": "chapter", "cardinality": "N:M", "notes": "Via anchors. An edge whose endpoint vanishes from the lexicon marks its anchoring chapters stale — dangling is drift even when hashes match." }
+      },
+      "source": "methodology/concept-relations.md:5-78, tools/lingua/dimensions/relations.py:24-146,167-179"
+    },
+    "anchor": {
+      "description": "The grounding primitive, a value object owned by its entry (term, phrase, or edge). Grounding is enforced by tooling, not good intentions: the quote must be found verbatim (after whitespace normalization) in the anchored chapter's own files, and is pinned to the content hash the chapter had when authored.",
+      "identity": ["(owned by entry; keyed by chapter for drop/merge)"],
+      "attributes": {
+        "chapter": { "type": "chapterLocalId", "required": true, "contentKind": "identifier", "notes": "'<group>/<NN>' — an anchor may only name its own target chapter." },
+        "path": { "type": "path", "required": "for code chapters", "contentKind": "identifier", "notes": "Source-relative; must be one of the chapter's unit_paths." },
+        "quote": { "type": "string", "required": true, "contentKind": "quote", "caps": { "minLength": 8, "maxLength": 240, "singleLine": true }, "notes": "Verbatim. The ONLY verbatim-source content in the whole substrate — typographically this is evidence, distinct from every paraphrase." },
+        "curated_against": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[0-9a-f]{12}$" }, "notes": "The drift pin, stamped by the writer — authors never handle hashes. Stale ⟺ pin no longer equals the chapter's content_hash." }
+      },
+      "relationships": {
+        "chapter": { "target": "chapter", "cardinality": "N:1" }
+      },
+      "source": "methodology/README.md:24-27, tools/lingua/dimensions/base.py:82-171"
+    },
+    "state": {
+      "description": "Extraction state per (chapter, dimension). DERIVED, never stored — computed from the anchors referencing that chapter plus dimension-specific drift rules. Register-level state is worst-of-chapters.",
+      "identity": ["chapter", "dimension"],
+      "attributes": {
+        "value": { "type": "enum:dimensionState", "required": true, "contentKind": "label" }
+      },
+      "relationships": {},
+      "source": "tools/lingua/status.py:3-70, tools/lingua/dimensions/base.py:178-185"
+    }
+  },
+  "enums": {
+    "dimensionState": {
+      "values": ["ok", "stale", "none"],
+      "notes": "ok = anchors present, all pins current; stale = some pin diverges from the chapter's content_hash (or, for concept-relations, a dangling endpoint); none = nothing anchored here. Aggregation order: stale > none > ok."
+    },
+    "termKind": {
+      "values": ["concept", "name", "identifier", "command", "file", "value"],
+      "notes": "What kind of name a term is. A flat enum with no sub-structure — concrete details (signatures, defaults, locations) fold into the definition prose."
+    },
+    "relationType": {
+      "values": {
+        "is-a": "kind/instance",
+        "part-of": "containment",
+        "uses": "dependency without data flow",
+        "feeds": "output of one becomes input of the other",
+        "configures": "one thing sets the other's behavior",
+        "contrasts-with": "the corpus explicitly distinguishes the two",
+        "implements": "a concrete thing realizes a contract/idea",
+        "precedes": "required ordering"
+      },
+      "notes": "Closed by design. Direction is semantic: from = actor/source, to = target."
+    },
+    "chapterKind": {
+      "values": { "doc": "one document", "code": "a coherent code unit" },
+      "notes": "kind=code tightens anchor validation: path becomes required."
+    },
+    "sourceKind": { "values": ["markdown", "code", "custom"] }
+  },
+  "caps": {
+    "perEntry": {
+      "anchors": { "min": 1, "max": 8 },
+      "quoteLength": { "min": 8, "max": 240 }
+    },
+    "perPayload": {
+      "note": "A payload is the authoring unit: one JSON document for one (dimension, chapter) pair.",
+      "terms": { "max": 40 },
+      "phrases": { "min": 1, "max": 15 },
+      "edges": { "max": 30 }
+    },
+    "perFile": {
+      "terms": { "max": 500 },
+      "phrases": null,
+      "edges": null
+    },
+    "fieldLengths": {
+      "term.term": 80, "term.definition": 400, "term.aliases[]": 80,
+      "phrase.phrase": 160, "phrase.intent": 160, "phrase.template": 300,
+      "relationEdge.gloss": 200, "anchor.quote": 240
+    }
+  },
+  "invariants": [
+    { "law": "Every entry carries 1–8 anchors; an entry with zero anchors does not exist (entries losing their last anchor are deleted on write).", "source": "tools/lingua/dimensions/{lexicon.py:186, phrasebook.py:145, relations.py:144-146}" },
+    { "law": "Anchor quotes are verbatim and mechanically verified against the chapter's own files; whitespace normalization is the only permitted deviation.", "source": "methodology/README.md:26-27, base.py:127-139" },
+    { "law": "Drift is per-anchor, not per-entry and not per-corpus: a term anchored in three chapters goes stale only where content changed. Pins track committed content, not the working tree.", "source": "base.py:7-8,178-185; gittree.py:1-6" },
+    { "law": "State is derived, never stored; register state is worst-of-chapters (stale > none > ok).", "source": "status.py:3-7,59-70" },
+    { "law": "One definition per term per register: exactly one chapter is defined_in; all others contribute mention anchors.", "source": "methodology/lexicon.md:18-20" },
+    { "law": "Cross-chapter redefinition is rejected without an explicit human-gated flag; undeclared define-conflicts auto-demote to mentions, with the earlier chapter in register order winning.", "source": "methodology/lexicon.md:86-87, tools/lingua/author.py:13-18" },
+    { "law": "Slugs are reused, never re-minted: mention-only writes (define:false) on an unknown slug are violations; the slug index keeps authors converging on one slug per concept.", "source": "methodology/lexicon.md:27-29, lexicon.py:148-152" },
+    { "law": "Lexicon before phrasebook and before relations: dependent payloads referencing missing term slugs are validation errors, and registry order encodes it.", "source": "phrasebook.py:114-118, relations.py:107-111, dimensions/__init__.py:13-18" },
+    { "law": "Edge identity is (from, type, to): duplicates within a payload are rejected; a second chapter anchoring the same edge merges anchors in (gloss last-writer-wins). No self-loops.", "source": "methodology/concept-relations.md:72-74, relations.py:112-119,132-142" },
+    { "law": "A dangling edge endpoint is drift even when hashes match; a dangling phrase→term reference is only a warning. The asymmetry is deliberate.", "source": "methodology/concept-relations.md:77-78, relations.py:174-177 vs phrasebook.py:194-201" },
+    { "law": "Writes are chapter-scoped drop-then-apply: a set for chapter C first drops all of C's existing anchors, then applies the payload — making re-authoring idempotent and removals possible.", "source": "methodology/lexicon.md:88-89, lexicon.py:162-186" },
+    { "law": "Content is last-writer-wins for phrases and glosses but ownership-gated for definitions — the one deliberate asymmetry between dimensions.", "source": "methodology/phrasebook.md:68-69 vs lexicon.md:86-87" },
+    { "law": "An unselected mode is not tracked at all — no data file, no state, no coverage pressure; an implemented but unelected mode cannot be written to.", "source": "status.py:5-7,42-46" },
+    { "law": "The register is a hard reference boundary: defined_in and every anchor use register-local chapter ids; nothing in data/ can point across registers.", "source": "tools/lingua/model.py:64-68" },
+    { "law": "Authors never handle hashes: curated_against is stamped by the writer, and grounding failures are rejections, not warnings.", "source": "base.py:143-151" },
+    { "law": "dimension = mode slug = methodology doc = dimension module; the methodology is executed, not merely cited (its procedure/schema/quality sections are embedded verbatim in every extract bundle).", "source": "methodology/README.md:36-62, dimensions/__init__.py:20-27" },
+    { "law": "Reserved group ids (lexicon, phrasebook, relations, concept-relations, chat, api, assets) are rejected at scan — they would shadow viewer routes.", "source": "tools/lingua/model.py:19-22" }
+  ],
+  "modelingNotes": [
+    "Quote single-line is enforced by the validator but stated in no methodology 'Schema and caps' section.",
+    "term.definition and phrase.template are the only multi-line fields; the docs state this for template but not for definition.",
+    "Only the lexicon has a per-file cap (500); phrasebook and relations have none — an open asymmetry.",
+    "The 'three names are the same string' law holds for slug/mode/methodology-doc; the data filename diverges once (concept-relations → relations.yaml), which is why dataFilename is an explicit dimension attribute.",
+    "Edges have no stable identity beyond (from, type, to): renaming a term slug silently destroys every edge referencing it; terms have slugs, edges do not.",
+    "All cross-references are register-relative; 'the same term across v1 and v2' has no representation at all.",
+    "aliases are stored but never indexed or surfaced as lookup keys, despite the methodology asking authors to record competing spellings for exactly that purpose.",
+    "template {slots} are unparsed free text — no slot list, no types, no linkage from slot names to lexicon slugs, despite template being the one artifact meant to be pasted into a real prompt.",
+    "The learning agent's named capabilities (naming lookup, phrasing rewrite, articulation quiz) are substrate consumers with no entity or persistence of their own — quiz/progress/calibration state is unmodeled.",
+    "No fourth dimension is designed anywhere; the extension point is fully specified (recorded modes) but empty. Treat mode as an open slug set and dimension as the closed implemented subset."
+  ]
+}
