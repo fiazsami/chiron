@@ -18,11 +18,14 @@ mounted corpus creates the next register (v2, v3, ...).
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
+from . import author as authormod
 from . import corpora as corporamod
 from . import dimensions
+from .author import AuthorError
 from .corpora import CorpusError
 from .dimensions.base import LinguaDataError, SetContext, read_payload
 from .extract import build_extract
@@ -31,7 +34,7 @@ from .model import Chapter, ScanError
 from .render import render_all
 from .status import (
     MOUNT_HINT, RegisterBundle, all_ok, build_bundle, print_status,
-    state_summary,
+    resolve_factory, state_summary,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -74,6 +77,39 @@ def _parser() -> argparse.ArgumentParser:
     setcmd.add_argument("--redefine", action="store_true",
                         help="allow redefining a term owned by another chapter")
 
+    author = sub.add_parser(
+        "author",
+        help="API-native authoring: submit, collect, and apply extraction "
+             "runs (Batch API + structured outputs)")
+    author.add_argument("targets", nargs="*", metavar="TARGET",
+                        help="a register (<corpus>/<vN>), group, or chapter "
+                             "ids — one register per run")
+    author.add_argument("--mode", metavar="SLUG",
+                        help="author a single dimension instead of every "
+                             "not-ok tracked one")
+    author.add_argument("--model", default=None,
+                        help="model id (default: $CHIRON_AUTHOR_MODEL or "
+                             "claude-sonnet-5)")
+    author.add_argument("--effort", default=None,
+                        help="low|medium|high|xhigh|max (default: "
+                             "$CHIRON_AUTHOR_EFFORT or medium)")
+    author.add_argument("--sync", action="store_true",
+                        help="call the API synchronously instead of the "
+                             "Batch API (for a handful of chapters)")
+    author.add_argument("--collect", action="store_true",
+                        help="fetch a submitted batch's results")
+    author.add_argument("--wait", action="store_true",
+                        help="with --collect: poll until the batch ends")
+    author.add_argument("--apply", dest="apply_results", action="store_true",
+                        help="validate and apply collected results "
+                             "(single-writer; redefinitions are held for "
+                             "human review)")
+    author.add_argument("--check", action="store_true",
+                        help="with --apply: dry-run, write nothing")
+    author.add_argument("--retry", nargs="+", metavar="ID", default=None,
+                        help="re-author rejected chapters with their stored "
+                             "violations (synchronous)")
+
     drift = sub.add_parser("accept-drift",
                            help="re-pin current content hashes for stale anchors "
                                 "(re-blesses content as-is; prefer re-authoring)")
@@ -87,30 +123,15 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _resolve_factory(bundles: list[RegisterBundle]):
-    chapters = [c for b in bundles for c in b.corpus.chapters]
-    by_id = {c.id: c for c in chapters}
+    resolve = resolve_factory(bundles)
 
-    def resolve(chapter_id: str) -> Chapter:
-        """Full ids ("fewshot-works-academy/v1/foundations/02"), or the shorthands
-        "<corpus>/<group>/<NN>" / "<group>/<NN>" when exactly one mounted
-        register matches (a segment count matches only its own form)."""
-        if chapter_id in by_id:
-            return by_id[chapter_id]
-        matches = [
-            c for c in chapters
-            if c.local_id == chapter_id
-            or f"{c.corpus}/{c.group}/{c.number}" == chapter_id
-        ]
-        if len(matches) == 1:
-            return matches[0]
-        if len(matches) > 1:
-            raise CorpusError(
-                f"ambiguous chapter id {chapter_id!r} — candidates: "
-                + ", ".join(c.id for c in matches)
-            )
-        raise CorpusError(f"no such chapter: {chapter_id}")
+    def wrapped(chapter_id: str) -> Chapter:
+        try:
+            return resolve(chapter_id)
+        except ValueError as exc:
+            raise CorpusError(str(exc)) from exc
 
-    return resolve
+    return wrapped
 
 
 def _require_tracked(bundle: RegisterBundle, mode: str) -> None:
@@ -182,6 +203,75 @@ def _accept_drift(bundles: list[RegisterBundle], resolve, ids: list[str],
         for slug, chapter_ids in updated.items()
     ))
     return 0
+
+
+def _pending(bundle: RegisterBundle) -> list[Chapter]:
+    return [
+        c for c in bundle.corpus.chapters
+        if any(s != "ok" for s in bundle.chapter_states(c).values())
+    ]
+
+
+def _author_targets(bundles, resolve, targets):
+    """Resolve author targets to (register key, chapters). Register and group
+    targets take their not-ok chapters; explicit ids are taken as given.
+    One register per authoring run."""
+    chapters: list[Chapter] = []
+    for target in targets:
+        regs = [
+            b for b in bundles
+            if f"{b.corpus.name}/{b.corpus.register}" == target
+            or b.corpus.name == target
+        ]
+        if len(regs) > 1:
+            raise CorpusError(
+                f"{target!r} matches several registers — use <corpus>/<vN>")
+        if regs:
+            chapters += _pending(regs[0])
+            continue
+        groups = [
+            (b, g) for b in bundles for g in b.corpus.group_ids
+            if g == target
+            or f"{b.corpus.name}/{b.corpus.register}/{g}" == target
+        ]
+        if len(groups) > 1:
+            raise CorpusError(
+                f"ambiguous group {target!r} — qualify as <corpus>/<vN>/<group>")
+        if groups:
+            bundle, group_id = groups[0]
+            chapters += [c for c in _pending(bundle) if c.group == group_id]
+            continue
+        chapters.append(resolve(target))
+    seen: set[str] = set()
+    unique = [c for c in chapters if not (c.id in seen or seen.add(c.id))]
+    if not unique:
+        raise CorpusError("no chapters to author (every tracked state is ok?)")
+    keys = {(c.corpus, c.register) for c in unique}
+    if len(keys) > 1:
+        raise CorpusError(
+            "one register per authoring run — targets span "
+            + ", ".join(f"{n}/{r}" for n, r in sorted(keys)))
+    return keys.pop(), unique
+
+
+def _work_bundle(bundles: list[RegisterBundle], targets: list[str]) -> RegisterBundle:
+    """The register whose authoring run --collect/--apply operate on."""
+    if targets:
+        regs = [
+            b for b in bundles
+            if f"{b.corpus.name}/{b.corpus.register}" == targets[0]
+            or b.corpus.name == targets[0]
+        ]
+        if len(regs) == 1:
+            return regs[0]
+        raise CorpusError(f"{targets[0]!r} does not name exactly one register")
+    with_runs = [
+        b for b in bundles if (authormod.work_dir(b) / "run.json").exists()
+    ]
+    if len(with_runs) == 1:
+        return with_runs[0]
+    raise CorpusError(
+        "name the register, e.g.: author --collect <corpus>/<vN>")
 
 
 def _report(bundles: list[RegisterBundle], warnings: list[str]) -> None:
@@ -258,6 +348,48 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
 
         if args.cmd == "accept-drift":
             return _accept_drift(bundles, resolve, args.ids, args.mode)
+
+        if args.cmd == "author":
+            model = (args.model or os.environ.get("CHIRON_AUTHOR_MODEL")
+                     or authormod.DEFAULT_MODEL)
+            effort = (args.effort or os.environ.get("CHIRON_AUTHOR_EFFORT")
+                      or authormod.DEFAULT_EFFORT)
+            try:
+                import anthropic as _anthropic_mod
+                api_errors: tuple = (_anthropic_mod.APIError,)
+            except ImportError:
+                api_errors = ()
+            try:
+                if args.retry:
+                    chapters = [resolve(i) for i in args.retry]
+                    bundle = by_key[(chapters[0].corpus, chapters[0].register)]
+                    return authormod.retry(bundle, chapters, model, effort)
+                if args.collect:
+                    return authormod.collect(
+                        _work_bundle(bundles, args.targets), args.wait)
+                if args.apply_results:
+                    return authormod.apply_results(
+                        _work_bundle(bundles, args.targets), args.check)
+                if not args.targets:
+                    raise CorpusError(
+                        "author needs a target: a register (<corpus>/<vN>), "
+                        "a group, or chapter ids")
+                key, chapters = _author_targets(bundles, resolve, args.targets)
+                bundle = by_key[key]
+                if args.mode:
+                    _require_tracked(bundle, args.mode)
+                return authormod.submit(bundle, chapters, args.mode, model,
+                                        effort, args.sync)
+            except (AuthorError, *api_errors) as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                return 2
+            except TypeError as exc:
+                # The SDK raises a bare TypeError when no credential source
+                # resolves; anything else is a real bug — re-raise it.
+                if "authentication" not in str(exc).lower():
+                    raise
+                print(f"error: {authormod._auth_error(exc)}", file=sys.stderr)
+                return 2
     except (CorpusError, LinguaDataError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

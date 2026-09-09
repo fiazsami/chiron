@@ -5,6 +5,7 @@ description = "Mount any git repo as a corpus and extract its linguistic structu
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "anthropic>=1.4.0",
     "pyyaml>=6.0.3",
 ]
 

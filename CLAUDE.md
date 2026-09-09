@@ -82,6 +82,12 @@ the dimension = mode slug = methodology doc = dimension module contract.
   `data/*.yaml` is machine-owned via `uv run python -m tools.lingua set` —
   never hand-edit any of them. Anchor quotes are verbatim and mechanically
   verified; drift pins are per-anchor (`curated_against`).
+- Bulk authoring runs through the API-native stage
+  (`uv run python -m tools.lingua author`, driven by /translate): Batch API
+  + structured outputs, one register per run, results applied through the
+  same validate/`set` path. Undeclared define-conflicts auto-demote to
+  mentions (earlier chapter in register order owns the definition);
+  declared redefinitions always hold for a human gate.
 - The manifest v6 keys, extract-bundle headings, and `status --json` keys are
   contracts shared by `tools/lingua/`, `web/lib/content.ts`, and
   `.claude/agents/*.md` — change them in lockstep or not at all. Each

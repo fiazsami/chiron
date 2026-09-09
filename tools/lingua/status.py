@@ -83,6 +83,35 @@ class RegisterBundle:
         return counters
 
 
+def resolve_factory(bundles: list["RegisterBundle"]):
+    """Chapter-id resolver over the mounted bundles. Full ids
+    ("fewshot-works-academy/v1/foundations/02"), or the shorthands
+    "<corpus>/<group>/<NN>" / "<group>/<NN>" when exactly one mounted
+    register matches (a segment count matches only its own form). Raises
+    ValueError on unknown or ambiguous ids."""
+    chapters = [c for b in bundles for c in b.corpus.chapters]
+    by_id = {c.id: c for c in chapters}
+
+    def resolve(chapter_id: str) -> Chapter:
+        if chapter_id in by_id:
+            return by_id[chapter_id]
+        matches = [
+            c for c in chapters
+            if c.local_id == chapter_id
+            or f"{c.corpus}/{c.group}/{c.number}" == chapter_id
+        ]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise ValueError(
+                f"ambiguous chapter id {chapter_id!r} — candidates: "
+                + ", ".join(c.id for c in matches)
+            )
+        raise ValueError(f"no such chapter: {chapter_id}")
+
+    return resolve
+
+
 def build_bundle(corpus: Corpus, data_dir: Path) -> RegisterBundle:
     """Load every implemented dimension's data file for one register and
     collect its data-level warnings. Raises LinguaDataError on unusable files."""

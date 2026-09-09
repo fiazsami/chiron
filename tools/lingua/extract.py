@@ -1,11 +1,17 @@
-"""Build the chapter source bundle consumed by authoring/validation subagents.
+"""Build the chapter source bundle consumed by authoring/validation agents.
 
-The bundle is plain text on stdout: chapter metadata, the register's
-translation requirements, the methodology for each active dimension (embedded
-so the modular plans in methodology/ steer the agents directly), the
-chapter's content, and the currently stored entries anchored in it. Verbatim
-content is wrapped in sentinel lines (<<<BEGIN x>>> / <<<END x>>>) rather
-than ``` fences, because chapter sources contain fenced blocks of their own.
+The bundle is plain text: chapter metadata, the register's translation
+requirements, the methodology for each active dimension (embedded so the
+modular plans in methodology/ steer the authors directly), the chapter's
+content, and the currently stored entries anchored in it. Verbatim content
+is wrapped in sentinel lines (<<<BEGIN x>>> / <<<END x>>>) rather than
+``` fences, because chapter sources contain fenced blocks of their own.
+
+The sections are composable: `build_extract` renders the whole bundle for
+interactive/agent use, while the API-native authoring stage (author.py)
+splits them into a run-stable shared block (requirements + methodology +
+slug index — one prompt-cache prefix for every chapter in the run) and a
+per-chapter block.
 """
 
 import re
@@ -37,6 +43,7 @@ def _cap(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return text[:limit] + f"\n[... truncated {len(text) - limit} chars ...]"
+
 
 def _block(tag: str, content: str) -> str:
     return f"<<<BEGIN {tag}>>>\n{content.rstrip()}\n<<<END {tag}>>>\n"
@@ -97,27 +104,9 @@ def _code_files(chapter: Chapter) -> tuple[list[Path], list[Path]]:
     return extracted, named_only
 
 
-def build_extract(
-    chapter: Chapter,
-    corpus: Corpus,
-    bundle: RegisterBundle,
-    mode: str | None = None,
-) -> str:
-    root = corpus.root
-    states = bundle.chapter_states(chapter)
-    modes = [mode] if mode else [m for m in bundle.tracked_modes]
-    out = [
-        f"# Extract: {chapter.id} — {chapter.title}",
-        "",
-        f"- id: {chapter.id}",
-        f"- content_hash: {chapter.content_hash}",
-        f"- group: {chapter.group}   chapter: {chapter.number}   slug: {chapter.slug}",
-        f"- kind: {chapter.kind}",
-        "- states: " + "   ".join(f"{s}={v}" for s, v in states.items()),
-        "",
-    ]
-
-    out.append(f"## Translation requirements (register {corpus.register})")
+def requirements_lines(corpus: Corpus) -> list[str]:
+    """## Translation requirements — stable for every chapter of a register."""
+    out = [f"## Translation requirements (register {corpus.register})"]
     mode_line = ", ".join(
         m + (" (active)" if mode_status(m) == "implemented"
              else " (recorded — not yet implemented)")
@@ -129,25 +118,68 @@ def build_extract(
     out.append("")
     if corpus.translation_notes:
         out.append(_block("translation-notes", corpus.translation_notes))
+    return out
 
+
+def methodology_lines(modes: list[str]) -> list[str]:
+    """## Methodology sections — stable for every chapter of a run."""
+    out = []
     for slug in modes:
         out.append(f"## Methodology: {slug}")
         out.append(_block(f"methodology:{slug}", methodology_excerpt(slug)))
+    return out
 
+
+def slug_index_lines(bundle: RegisterBundle) -> list[str]:
+    """## Lexicon slug index — the cross-chapter device that keeps authors
+    reusing slugs instead of forking them."""
+    lexmod = dimensions.REGISTRY["lexicon"]
+    index = lexmod.slug_index(bundle.data.get("lexicon", {}))
+    return [
+        "## Lexicon slug index",
+        _block(
+            "slug-index",
+            "\n".join(index) if index else "(lexicon is empty — every slug is new)",
+        ),
+    ]
+
+
+def meta_lines(chapter: Chapter, bundle: RegisterBundle) -> list[str]:
+    states = bundle.chapter_states(chapter)
+    return [
+        f"# Extract: {chapter.id} — {chapter.title}",
+        "",
+        f"- id: {chapter.id}",
+        f"- content_hash: {chapter.content_hash}",
+        f"- group: {chapter.group}   chapter: {chapter.number}   slug: {chapter.slug}",
+        f"- kind: {chapter.kind}",
+        "- states: " + "   ".join(f"{s}={v}" for s, v in states.items()),
+        "",
+    ]
+
+
+def content_lines(chapter: Chapter, corpus: Corpus) -> list[str]:
+    out = []
     if chapter.kind == "doc":
         out.append("## Chapter content")
         out.append(_block("doc", _cap(_doc_body(chapter), DOC_CAP)))
     else:
         extracted, named_only = _code_files(chapter)
         for p in extracted:
-            rel = p.relative_to(root).as_posix()
+            rel = p.relative_to(corpus.root).as_posix()
             out.append(f"## Chapter file: {rel}")
             out.append(_block(f"file:{rel}", _cap(p.read_text(errors="replace"), FILE_CAP)))
         if named_only:
             out.append("## Other chapter files (names only)")
-            out.extend(f"- {p.relative_to(root).as_posix()}" for p in named_only)
+            out.extend(f"- {p.relative_to(corpus.root).as_posix()}" for p in named_only)
             out.append("")
+    return out
 
+
+def current_entry_lines(
+    chapter: Chapter, bundle: RegisterBundle, modes: list[str]
+) -> list[str]:
+    out = []
     for slug in modes:
         module = dimensions.REGISTRY[slug]
         entries = module.entries_for_chapter(bundle.data[slug], chapter.local_id)
@@ -156,12 +188,22 @@ def build_extract(
             f"(corpora/{chapter.corpus}/{chapter.register}/data/{module.DATA_FILENAME})"
         )
         out.append(_block(f"{slug}-yaml", _yaml_or_none(entries)))
+    return out
 
-    lexmod = dimensions.REGISTRY["lexicon"]
-    out.append("## Lexicon slug index")
-    index = lexmod.slug_index(bundle.data.get("lexicon", {}))
-    out.append(_block(
-        "slug-index",
-        "\n".join(index) if index else "(lexicon is empty — every slug is new)",
-    ))
+
+def build_extract(
+    chapter: Chapter,
+    corpus: Corpus,
+    bundle: RegisterBundle,
+    mode: str | None = None,
+) -> str:
+    modes = [mode] if mode else list(bundle.tracked_modes)
+    out = (
+        meta_lines(chapter, bundle)
+        + requirements_lines(corpus)
+        + methodology_lines(modes)
+        + content_lines(chapter, corpus)
+        + current_entry_lines(chapter, bundle, modes)
+        + slug_index_lines(bundle)
+    )
     return "\n".join(out)

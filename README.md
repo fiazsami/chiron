@@ -79,4 +79,13 @@ uv run python -m tools.lingua status --json   # per-chapter, per-dimension state
 uv run python -m tools.lingua extract <id>    # authoring bundle for agents
 uv run python -m tools.lingua set <dim> <id> --from payload.json
 uv run python -m tools.lingua accept-drift <id> [--mode <dim>]
+
+# API-native authoring (what /translate drives): Batch API + structured
+# outputs on a Sonnet-class model; results apply through the same
+# grounded validate/set path. Model/effort via --model/--effort or
+# CHIRON_AUTHOR_MODEL / CHIRON_AUTHOR_EFFORT.
+uv run python -m tools.lingua author <register|group|ids> [--sync]
+uv run python -m tools.lingua author --collect --wait
+uv run python -m tools.lingua author --apply [--check]
+uv run python -m tools.lingua author --retry <id>
 ```
