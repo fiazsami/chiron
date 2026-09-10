@@ -6,6 +6,9 @@ register ("v1", "v2", ...) is a distinct retelling of the same material:
 
     corpus.yaml            corpus config (title, urls, origin)
     source/                checkout of the material — shared by all registers
+    derived/<recipe>/      generated material — a Markdown tree produced from
+                           source/ by `ch doc`, git-committed so it hashes and
+                           versions exactly like a checkout
     v1/translation.yaml    the register's translation requirements
     v1/tools/adapter.py    adapter exposing scan(cfg, root) -> Corpus
     v1/data/               extracted linguistic structure (lexicon.yaml,
@@ -51,11 +54,16 @@ class CorpusConfig:
     modes: list[str]  # translation mode slugs
     translation_notes: str | None
     groups: list[Group] | None  # None -> adapter default
+    # Which tree under corpus_dir this register scans: None/"source" is the
+    # checkout, "derived/<recipe>" a generated tree. One material per register.
+    material: str | None = None
     adapter_options: dict = field(default_factory=dict)  # adapter: knobs, passed through
 
     @property
     def source_dir(self) -> Path:
-        return self.corpus_dir / "source"
+        """The tree the adapter scans. A register elects it with `material:`;
+        the adapter contract stays single-rooted either way."""
+        return self.corpus_dir / (self.material or "source")
 
     @property
     def data_dir(self) -> Path:
@@ -116,6 +124,36 @@ def _load_corpus_yaml(corpus_dir: Path) -> tuple[dict, list[str]]:
     return {"title": title.strip(), "urls": dict(urls), "origin": origin}, warnings
 
 
+def _validate_material(cfg: CorpusConfig, where: str) -> None:
+    """A derived material must exist, carry its recipe, and stay in the corpus.
+
+    `source` is exempt from every check here: /ch:mount symlinks it to an
+    absolute path for a local folder, and a missing checkout is the adapter's
+    ScanError to raise, with better words than this function has.
+    """
+    if cfg.material is None or cfg.material == "source":
+        return
+    resolved = cfg.source_dir.resolve()
+    if not resolved.is_relative_to(cfg.corpus_dir.resolve()):
+        raise CorpusError(
+            f"{where}: material {cfg.material!r} resolves to {resolved} — "
+            f"outside corpora/{cfg.name}/. A derived tree is generated in "
+            f"place; it is never a symlink elsewhere"
+        )
+    if not cfg.source_dir.is_dir():
+        raise CorpusError(
+            f"{where}: material {cfg.material!r} not found — generate it with "
+            f"`./ch doc --stage {cfg.name} --from <recipe.json>` then "
+            f"`./ch doc --promote {cfg.name}/{cfg.material.split('/')[-1]}`"
+        )
+    if not (cfg.source_dir / ".chiron" / "recipe.yaml").is_file():
+        raise CorpusError(
+            f"{where}: {cfg.material}/ has no .chiron/recipe.yaml — a derived "
+            f"tree records the recipe that generated it, so it can be "
+            f"regenerated and its provenance read; re-promote it"
+        )
+
+
 def load_config(corpus_dir: Path, register_dir: Path) -> tuple[CorpusConfig, list[str]]:
     """Load one (corpus, register) pair: corpus.yaml + translation.yaml."""
     corpus, warnings = _load_corpus_yaml(corpus_dir)
@@ -131,8 +169,9 @@ def load_config(corpus_dir: Path, register_dir: Path) -> tuple[CorpusConfig, lis
         title=corpus["title"], urls=corpus["urls"], origin=corpus["origin"],
         label=tcfg.label, modes=tcfg.modes,
         translation_notes=tcfg.notes, groups=tcfg.groups,
-        adapter_options=tcfg.adapter_options,
+        material=tcfg.material, adapter_options=tcfg.adapter_options,
     )
+    _validate_material(cfg, where)
     return cfg, warnings
 
 

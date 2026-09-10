@@ -91,7 +91,52 @@ CODETREE_ADAPTER = (
     "from tools.lingua.sources import codetree\n\n"
     "def scan(cfg, root):\n    return codetree.scan(cfg, root)\n"
 )
+APIDOC_ADAPTER = (
+    "from tools.lingua.sources import apidoc\n\n"
+    "def scan(cfg, root):\n    return apidoc.scan(cfg, root)\n"
+)
 ALL_MODES = "modes: [lexicon, phrasebook, concept-relations]\n"
+
+# A derived tree as `ch doc --promote` leaves one: Markdown, plus the recipe
+# that produced it. Two groups, one nested module, one "Defined in" pointer.
+DERIVED_PAGES = {
+    "index.md": "# API Reference\n\nThe public surface of the demo package.\n",
+    "runtime/index.md": "# Runtime\n\nEverything that executes a compiled function.\n",
+    "runtime/BamlRuntime.md": (
+        "# BamlRuntime\n\nCompiles `.baml` sources into a typed client.\n\n"
+        "**Defined in** src/runtime/mod.ts:42\n"
+    ),
+    "runtime/internals/Tracer.md": "# Tracer\n\nWalks the span tree.\n",
+    "client/Collector.md": "# Collector\n\nGathers traces emitted during a call.\n",
+}
+DERIVED_RECIPE = """schema: 1
+recipe: ts-public
+tool: typedoc
+image: ghcr.io/example/chiron-docgen@sha256:{sha}
+source_commit: abc1234
+options:
+  entry_points: [src/index.ts]
+  documented_only: true
+layout:
+  group_by: {group_by}
+  max_chapters: {max_chapters}
+determinism:
+  verified: true
+  digest: deadbeef
+""".replace("{sha}", "1" * 64)
+
+
+def write_derived(corpus_dir, recipe: str = "ts-public", *, group_by: str = "directory",
+                  max_chapters: int = 50, pages: dict | None = None):
+    """Materialize corpora/<name>/derived/<recipe>/ the way promote does."""
+    tree = corpus_dir / "derived" / recipe
+    write_source(tree, pages if pages is not None else DERIVED_PAGES)
+    (tree / ".chiron").mkdir(parents=True, exist_ok=True)
+    (tree / ".chiron" / "recipe.yaml").write_text(
+        DERIVED_RECIPE.format(group_by=group_by, max_chapters=max_chapters)
+    )
+    git_commit_all(tree, "generated")
+    return tree
 
 
 @pytest.fixture
@@ -104,6 +149,22 @@ def markdown_corpus(tmp_path):
     corpora.mkdir()
     mount(corpora, "demo-course", source, ALL_MODES, MARKDOWN_ADAPTER)
     return corpora, source
+
+
+@pytest.fixture
+def derived_corpus(tmp_path):
+    """(corpora_dir, corpus_dir) with a register scanning a derived tree."""
+    source = tmp_path / "src"
+    write_source(source, CODE_FILES)
+    git_commit_all(source)
+    corpora = tmp_path / "corpora"
+    corpora.mkdir()
+    corpus_dir = mount(
+        corpora, "demo-api", source,
+        "modes: [lexicon]\nmaterial: derived/ts-public\n", APIDOC_ADAPTER,
+    )
+    write_derived(corpus_dir)
+    return corpora, corpus_dir
 
 
 @pytest.fixture

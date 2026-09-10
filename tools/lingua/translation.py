@@ -3,10 +3,11 @@
 translation.yaml records the translation requirements gathered by /mount for
 one register of a corpus: which linguistic dimensions (modes) the retelling
 extracts, an optional display label, free-text notes that steer the authoring
-agents, an optional groups override for the adapter, and optional adapter
-knobs. Modes are extensible slugs: "implemented" ones are dimensions shipped
-in tools/lingua/dimensions/ (each bound to a methodology/<slug>.md plan);
-"recorded" ones are stored and surfaced but have no extraction machinery yet.
+agents, which material tree the register scans, an optional groups override
+for the adapter, and optional adapter knobs. Modes are extensible slugs:
+"implemented" ones are dimensions shipped in tools/lingua/dimensions/ (each
+bound to a methodology/<slug>.md plan); "recorded" ones are stored and
+surfaced but have no extraction machinery yet.
 """
 
 import re
@@ -20,7 +21,11 @@ from .model import Group
 
 MODE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 GROUP_ID_RE = re.compile(r"^[a-z0-9-]+$")
-KNOWN_KEYS = {"label", "modes", "notes", "groups", "adapter"}
+# Which tree under corpora/<name>/ this register scans. "source" is the
+# checkout; "derived/<recipe>" is a generated tree materialized by `ch doc`.
+# Anchored and slug-shaped on both segments, so it can never escape the corpus.
+MATERIAL_RE = re.compile(r"^(source|derived/[a-z0-9][a-z0-9-]*)$")
+KNOWN_KEYS = {"label", "modes", "notes", "material", "groups", "adapter"}
 
 
 class TranslationError(Exception):
@@ -33,6 +38,7 @@ class TranslationConfig:
     modes: list[str]
     notes: str | None
     groups: list[Group] | None  # None -> adapter default
+    material: str | None = None  # None -> "source"; else "derived/<recipe>"
     adapter_options: dict = field(default_factory=dict)
 
 
@@ -101,6 +107,15 @@ def load_translation(register_dir: Path, where: str) -> tuple[TranslationConfig,
     if notes is not None and not isinstance(notes, str):
         raise TranslationError(f"{where}: 'notes' must be a string")
 
+    material = data.get("material")
+    if material is not None and (
+        not isinstance(material, str) or not MATERIAL_RE.fullmatch(material)
+    ):
+        raise TranslationError(
+            f"{where}: 'material' must be 'source' or 'derived/<recipe>' "
+            f"(recipe matching [a-z0-9][a-z0-9-]*), got {material!r}"
+        )
+
     groups = None
     if data.get("groups") is not None:
         groups = parse_groups(data["groups"], where)
@@ -117,5 +132,6 @@ def load_translation(register_dir: Path, where: str) -> tuple[TranslationConfig,
         modes=list(modes),
         notes=notes.strip() if notes and notes.strip() else None,
         groups=groups,
+        material=material,
         adapter_options=dict(adapter),
     ), warnings
