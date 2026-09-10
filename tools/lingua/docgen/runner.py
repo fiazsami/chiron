@@ -118,6 +118,16 @@ def require_docker() -> str:
     return binary
 
 
+def recipe_path_for(out: Path) -> Path:
+    """Where the recipe is written for a run — beside the output, never in it.
+
+    Generators empty their own output directory before writing (typedoc warns
+    and then produces nothing if it cannot). The recipe is input anyway, so it
+    is mounted read-only at /recipe.json and /out stays pristine.
+    """
+    return out.parent / f"{out.name}.recipe.json"
+
+
 def build_argv(recipe: Recipe, source: Path, out: Path, *,
                image: str | None = None, limits: Limits = Limits(),
                binary: str = "docker") -> list[str]:
@@ -131,6 +141,8 @@ def build_argv(recipe: Recipe, source: Path, out: Path, *,
         "--read-only",                # the container's own filesystem too
         "--mount", f"type=bind,src={source.resolve()},dst=/src,ro",
         "--mount", f"type=bind,src={out.resolve()},dst=/out",
+        "--mount",
+        f"type=bind,src={recipe_path_for(out).resolve()},dst=/recipe.json,ro",
         "--tmpfs", "/tmp:exec",       # generators need a scratch they can run from
         "--memory", limits.memory,
         "--cpus", limits.cpus,
@@ -180,7 +192,9 @@ def generate(recipe: Recipe, source: Path, out: Path, *,
     out.mkdir(parents=True, exist_ok=True)
     # The image reads the recipe chiron already validated; there is no second
     # schema and no flags on the command line to disagree with it.
-    (out / ".recipe.json").write_text(json.dumps(recipe.to_dict(), indent=2))
+    recipe_file = recipe_path_for(out)
+    recipe_file.parent.mkdir(parents=True, exist_ok=True)
+    recipe_file.write_text(json.dumps(recipe.to_dict(), indent=2))
 
     argv = build_argv(recipe, source, out, image=ref, binary=binary)
     if echo:
@@ -196,11 +210,13 @@ def generate(recipe: Recipe, source: Path, out: Path, *,
         ) from exc
     except OSError as exc:
         raise DockerError(f"could not run docker: {exc}") from exc
+    finally:
+        recipe_file.unlink(missing_ok=True)
     if proc.returncode != 0:
         detail = (proc.stderr or proc.stdout or "").strip()
         raise DockerError(
             f"{recipe.tool} failed in the container (exit {proc.returncode}):\n"
             + "\n".join("  " + line for line in detail.splitlines()[-30:])
         )
-    (out / ".recipe.json").unlink(missing_ok=True)
+    recipe_file.unlink(missing_ok=True)
     return proc.stdout

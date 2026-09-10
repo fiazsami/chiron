@@ -24,6 +24,9 @@ a tree it cannot account for.
 | `gomarkdoc` | Go | Markdown natively |
 | `doxygen` → XML → `moxygen` | C, C++ | Markdown via one converter |
 
+All four are verified end to end against real code, each proving determinism
+by generating twice: pydoc-markdown, typedoc, doxygen→moxygen, and gomarkdoc.
+
 `moxygen` rather than the more common `doxybook2`: doxybook2 publishes an
 amd64-only binary, and this image has to build on arm64 too. moxygen is
 JavaScript, so it runs wherever node does — and node is already here.
@@ -45,6 +48,24 @@ records it, so a locally built image pins to its image id and a pulled one
 pins to its registry digest. Either way the recipe records the bytes that ran,
 never a moving name.
 
+## Things the tools insist on
+
+Three constraints cost a rebuild each to discover, and are load-bearing:
+
+- **Generators must own their output directory.** typedoc deletes and
+  recreates it before writing, which cannot work on a bind-mount point — it
+  warns "Could not empty the output directory" and then silently produces
+  nothing. So every tool writes to `/tmp/gen` and the entrypoint copies the
+  result into `/out`. For the same reason the recipe is mounted at
+  `/recipe.json`, never placed inside `/out`.
+- **typedoc's `--disableGit` requires `--sourceLinkTemplate`.** Using
+  `{path}#L{line}` gives source-relative links with no checkout state in
+  them, which is both reproducible and exactly what chiron parses back into
+  an upstream URL.
+- **moxygen must not be given `--groups`** unless the project uses
+  `@defgroup`; it exits 1 when asked for groups it cannot find. `--classes
+  --anchors --noindex` gives one page per class and no giant `api.md`.
+
 ## Publish one
 
 ```bash
@@ -59,7 +80,7 @@ Until one is published that constant is `None`, and `ch doc` says so.
 ## The contract with chiron
 
 The recipe is the whole interface. chiron validates it against the closed
-registry in `tools/lingua/docgen/__init__.py`, writes it to `/out/.recipe.json`,
+registry in `tools/lingua/docgen/__init__.py`, mounts it read-only at `/recipe.json`,
 and the entrypoint decides how to invoke the tool. One schema between them —
 versioned, and stamped on the image as `org.chiron.recipe-schema`. `ch doc`
 refuses an image whose label disagrees with its own `SCHEMA_VERSION`.

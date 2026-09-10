@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Turn a validated recipe into a documentation tree. Runs inside the image.
 
-Contract with chiron: read /out/.recipe.json — already schema-checked on the
-host — write Markdown under /out, exit non-zero with a reason on failure.
+Contract with chiron: read /recipe.json — already schema-checked on the host —
+write Markdown under /out, exit non-zero with a reason on failure.
 Never read anything outside /src, never write anything outside /out, never
 touch the network (there is none).
 
@@ -22,6 +22,14 @@ from pathlib import Path
 
 SRC = Path("/src")
 OUT = Path("/out")
+# Input, mounted read-only. Never inside /out: generators empty their output
+# directory before writing, and typedoc produces nothing when it cannot.
+RECIPE = Path("/recipe.json")
+# Generators write here, not to /out. Several of them delete and recreate
+# their output directory, which cannot work on a bind-mount point — typedoc
+# warns "Could not empty the output directory" and then writes nothing at all.
+# Giving each tool a directory it fully owns sidesteps the whole class.
+GEN = Path(os.environ.get("TMPDIR", "/tmp")) / "gen"
 TMP = Path(os.environ.get("TMPDIR", "/tmp"))
 
 
@@ -55,7 +63,7 @@ def resolve(rel: str) -> Path:
 
 
 def write(rel: str, text: str) -> None:
-    path = OUT / rel
+    path = GEN / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text)
 
@@ -66,11 +74,14 @@ def typedoc(opts: dict) -> None:
     argv = [
         "typedoc",
         "--plugin", "typedoc-plugin-markdown",
-        "--out", str(OUT),
+        "--out", str(GEN),
         # Git state would leak the checkout into every source link, and the
-        # tree is hashed. Relative paths are also what chiron parses back into
-        # an upstream URL.
+        # tree is hashed. --disableGit demands an explicit link template, and
+        # a source-relative one is exactly what chiron parses back into an
+        # upstream URL — so the constraint lands where we wanted to be anyway.
         "--disableGit",
+        "--sourceLinkTemplate", "{path}#L{line}",
+        "--basePath", str(SRC),
         "--hideGenerator",
         "--githubPages", "false",
         "--readme", "none",
@@ -143,7 +154,7 @@ def gomarkdoc(opts: dict) -> None:
     # read-only, so work from a copy in tmpfs.
     work = TMP / "gosrc"
     shutil.copytree(SRC, work, symlinks=True, dirs_exist_ok=True)
-    argv = ["gomarkdoc", "--output", str(OUT / "{{.Dir}}" / "index.md")]
+    argv = ["gomarkdoc", "--output", str(GEN / "{{.Dir}}" / "index.md")]
     if opts.get("include_unexported"):
         argv.append("--include-unexported")
     argv += list(opts.get("packages") or ["./..."])
@@ -194,11 +205,12 @@ def doxygen(opts: dict) -> None:
     run(["doxygen", str(doxyfile)], cwd=SRC)
     if not (xml / "index.xml").is_file():
         fail("doxygen produced no XML — check the `input` directories")
-    # One page per class and per group, so a chapter is a unit of the API
-    # rather than one enormous api.md. --noindex drops moxygen's own nav,
-    # which carries no working language and is where its output varies.
-    run(["moxygen", "--classes", "--groups", "--anchors", "--noindex",
-         "--output", str(OUT / "%s.md"), str(xml)])
+    # One page per class, so a chapter is a unit of the API rather than one
+    # enormous api.md, and --noindex drops moxygen's nav, which carries no
+    # working language. Not --groups: moxygen exits 1 when it is asked for
+    # groups and the project uses no @defgroup, which most do not.
+    run(["moxygen", "--classes", "--anchors", "--noindex",
+         "--output", str(GEN / "%s.md"), str(xml)])
 
 
 TOOLS = {
@@ -210,10 +222,9 @@ TOOLS = {
 
 
 def main() -> int:
-    recipe_path = OUT / ".recipe.json"
-    if not recipe_path.is_file():
-        fail(f"{recipe_path} is missing — chiron writes it before the run")
-    recipe = json.loads(recipe_path.read_text())
+    if not RECIPE.is_file():
+        fail(f"{RECIPE} is missing — chiron mounts it before the run")
+    recipe = json.loads(RECIPE.read_text())
     tool = recipe.get("tool")
     if tool not in TOOLS:
         fail(f"this image does not implement {tool!r} "
@@ -221,12 +232,21 @@ def main() -> int:
     # Reproducible builds ask for this, and several toolchains honour it.
     os.environ.setdefault("SOURCE_DATE_EPOCH", "0")
     os.environ.setdefault("TZ", "UTC")
+    GEN.mkdir(parents=True, exist_ok=True)
     TOOLS[tool](recipe.get("options") or {})
 
-    pages = [p for p in OUT.rglob("*.md")
-             if not any(part.startswith(".") for part in p.relative_to(OUT).parts)]
+    pages = sorted(
+        p for p in GEN.rglob("*.md")
+        if not any(part.startswith(".") for part in p.relative_to(GEN).parts)
+    )
     if not pages:
         fail(f"{tool} wrote no Markdown — nothing to mount")
+    # Sorted so the copy order is stable; the bytes are what get hashed, but a
+    # stable walk keeps anything order-sensitive downstream honest too.
+    for page in pages:
+        target = OUT / page.relative_to(GEN)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(page, target)
     print(f"docgen: {tool} wrote {len(pages)} page(s)")
     return 0
 
