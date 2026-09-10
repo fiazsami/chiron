@@ -6,10 +6,6 @@
     "name": "Fiaz Sami"
   },
   "skills": "./skills/",
-  "agents": [
-    "./agents/lingua-author.md",
-    "./agents/lingua-validator.md"
-  ],
   "hooks": {
     "SessionStart": [
       {

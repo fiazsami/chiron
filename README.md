@@ -26,12 +26,21 @@ modular plan each dimension follows.
 cd web && npm run dev      # browse the evidence at localhost:3000
 ```
 
-The four verbs are one plugin. Once, to install it:
+The four verbs come from a plugin this repo ships and declares itself:
+`.claude-plugin/marketplace.json` publishes the `chiron` marketplace,
+`plugins/ch/` is the plugin, and `.claude/settings.json` enables `ch@chiron`
+for anyone working in this project. There is nothing to install by hand — on
+a fresh machine Claude Code asks for install consent the first time, and
+`claude plugin install ch@chiron --scope project` does it non-interactively.
 
+After editing anything under `plugins/ch/`, refresh the installed copy:
+
+```bash
+claude plugin uninstall ch --scope project && claude plugin install ch@chiron --scope project
 ```
-/plugin marketplace add /path/to/chiron
-/plugin install ch@chiron
-```
+
+(`claude plugin marketplace update` will not re-copy while the version in
+`plugins/ch/.claude-plugin/plugin.json` is unchanged.)
 
 `./ch` is the CLI, scoped: `./ch status` == `uv run python -m tools.lingua
 status`. Both work, both from the repo root.

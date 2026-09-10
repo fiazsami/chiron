@@ -58,6 +58,17 @@
     }
   ],
 
+  "plugin": {
+    "marketplace": ".claude-plugin/marketplace.json",
+    "root": "plugins/ch",
+    "declaredIn": ".claude/settings.json",
+    "keys": ["extraKnownMarketplaces.chiron", "enabledPlugins['ch@chiron']"],
+    "scope": "project — shared with anyone working in this repo, not personal config",
+    "inventory": "4 skills, 2 agents, 1 SessionStart hook",
+    "agentsLoadByConvention": "plugin.json declares skills but NOT agents: an explicit \"agents\" array validates and then loads nothing. The agents/ directory is picked up on its own, which is how beads does it.",
+    "pathIsPortable": "The marketplace path is ${CLAUDE_PROJECT_DIR}, so the committed file carries no machine-specific path. `claude plugin marketplace list` reads the user registry rather than project settings, so that expansion could not be confirmed from the CLI; if it fails on a fresh clone, `claude plugin marketplace add ./ --scope project` rewrites it."
+  },
+
   "cli": {
     "entry": "./ch",
     "equivalence": "./ch <cmd> == uv run python -m tools.lingua <cmd>; both run from the repo root",
@@ -197,6 +208,6 @@
     "The PreToolUse guard that would make the corpora/ invariants enforced rather than restated is not wired; .claude/settings.json still has an empty hooks block. The SessionStart hook ships in the plugin manifest instead.",
     "Noun-phrase extraction in grade() is n-gram longest-match over surface forms plus a stopword filter. It is deliberately coverage, not grammar, and will be imperfect on long instructions.",
     "design/datamodel.json and design/ui-map.json carry `source` pointers without `quote`, so the drift test can only check that their files and line ranges still exist. Backfilling quotes would make them content-checkable too.",
-    "The plugin must be installed once by hand (/plugin marketplace add, /plugin install ch@chiron); .claude/skills/ still holds the superseded copies until it resolves."
+    "`claude plugin marketplace update` does not re-copy a directory-source plugin while its manifest version is unchanged, so an edit under plugins/ch/ needs an uninstall+install to take effect. Bumping the version on every skill edit is the alternative."
   ]
 }

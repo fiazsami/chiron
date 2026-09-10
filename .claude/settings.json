@@ -1,3 +1,14 @@
 {
-  "hooks": {}
+  "hooks": {},
+  "enabledPlugins": {
+    "ch@chiron": true
+  },
+  "extraKnownMarketplaces": {
+    "chiron": {
+      "source": {
+        "source": "directory",
+        "path": "${CLAUDE_PROJECT_DIR}"
+      }
+    }
+  }
 }
