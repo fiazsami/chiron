@@ -8,6 +8,8 @@ same bytes, because every anchor is pinned to bytes.
 """
 
 import json
+import shutil
+import subprocess
 
 import pytest
 
@@ -338,3 +340,231 @@ def test_census_publishes_the_closed_registry_to_its_reader(tmp_path):
     text = render(census(tmp_path), "demo")
     assert "pydoc-markdown.packages" in text
     assert "required" in text
+
+
+# --- the container is instantiated, run, and destroyed -----------------------
+
+def test_run_argv_is_the_whole_isolation_posture(tmp_path):
+    """Asserted without a daemon: build_argv is pure, so the posture that
+    keeps a generator away from the network and away from source/ is a unit
+    test rather than something you find out about in production."""
+    from tools.lingua.docgen.runner import build_argv
+    parsed = recipe_mod.parse(MINIMAL, "<t>")
+    source, out = tmp_path / "source", tmp_path / "out"
+    source.mkdir()
+    out.mkdir()
+    argv = build_argv(parsed, source, out, image=f"img@sha256:{SHA}")
+
+    assert argv[:3] == ["docker", "run", "--rm"], "the container must not outlive the run"
+    assert "--network" in argv and argv[argv.index("--network") + 1] == "none"
+    assert "--read-only" in argv
+    mounts = [argv[i + 1] for i, a in enumerate(argv) if a == "--mount"]
+    assert any(m.endswith(",dst=/src,ro") for m in mounts), "source must be read-only"
+    assert any(m.endswith(",dst=/out") for m in mounts)
+    assert not any(",dst=/out,ro" in m for m in mounts)
+    for limit in ("--memory", "--cpus", "--pids-limit"):
+        assert limit in argv
+    assert argv[-1] == "typedoc", "the tool slug is the only argument passed"
+    assert not any(a.startswith("--entryPoints") for a in argv), (
+        "recipe options must reach the image as validated JSON, never as flags"
+    )
+
+
+def test_no_image_configured_says_how_to_get_one(monkeypatch):
+    from tools.lingua.docgen import runner
+    monkeypatch.delenv(runner.DEFAULT_IMAGE_ENV, raising=False)
+    monkeypatch.setattr(runner, "DEFAULT_IMAGE", None)
+    with pytest.raises(runner.DockerError, match="docker build"):
+        runner.image_ref()
+
+
+def test_a_published_default_must_be_digest_pinned():
+    """Whatever ships as the default has to be reproducible. A tag is fine
+    only via the env override, where resolve_image pins it before recording."""
+    from tools.lingua.docgen.runner import DEFAULT_IMAGE
+    assert DEFAULT_IMAGE is None or "@sha256:" in DEFAULT_IMAGE
+
+
+def test_docker_absent_says_what_to_do(monkeypatch):
+    from tools.lingua.docgen import runner
+    monkeypatch.setattr(runner.shutil, "which", lambda _: None)
+    with pytest.raises(runner.DockerError, match="one chiron verb"):
+        runner.require_docker()
+
+
+# --- stage proves determinism before anything is promoted -------------------
+
+def _fake_generator(pages, *, drift=False):
+    """A generator stand-in. With drift=True its second run differs, which is
+    exactly the failure the staging gate exists to catch."""
+    state = {"runs": 0}
+
+    def generate(recipe, source, out):
+        state["runs"] += 1
+        body = dict(pages)
+        if drift and state["runs"] > 1:
+            body["mod/A.md"] = "# A\n\nGenerated at run %d.\n" % state["runs"]
+        write_source(out, body)
+    return generate, state
+
+
+PAGES = {"mod/A.md": "# A\n\nStable prose.\n", "mod/B.md": "# B\n\nAlso stable.\n"}
+
+
+def test_stage_generates_twice_to_prove_a_new_recipe(tmp_path):
+    from tools.lingua.docgen.stage import stage
+    corpus_dir = tmp_path / "demo"
+    (corpus_dir / "source").mkdir(parents=True)
+    generate, state = _fake_generator(PAGES)
+    staged = stage(recipe_mod.parse(MINIMAL, "<t>"), corpus_dir,
+                   generate=generate, echo=lambda _: None)
+    assert state["runs"] == 2, "an unproved recipe must be generated twice"
+    assert staged.ok and staged.proved
+    assert staged.recipe.verified and staged.recipe.digest == staged.digest
+
+
+def test_stage_catches_a_non_deterministic_generator(tmp_path):
+    from tools.lingua.docgen.stage import stage
+    corpus_dir = tmp_path / "demo"
+    (corpus_dir / "source").mkdir(parents=True)
+    generate, _ = _fake_generator(PAGES, drift=True)
+    staged = stage(recipe_mod.parse(MINIMAL, "<t>"), corpus_dir,
+                   generate=generate, echo=lambda _: None)
+    assert not staged.ok
+    assert "mod/A.md" in staged.difference
+    assert not staged.recipe.verified
+
+
+def test_a_proved_recipe_generates_once(tmp_path):
+    from tools.lingua.docgen.stage import stage
+    corpus_dir = tmp_path / "demo"
+    (corpus_dir / "source").mkdir(parents=True)
+    proved = recipe_mod.parse(
+        _recipe(determinism={"verified": True, "digest": "abc"}), "<t>"
+    )
+    generate, state = _fake_generator(PAGES)
+    staged = stage(proved, corpus_dir, generate=generate, echo=lambda _: None)
+    assert state["runs"] == 1, "proving twice is a cost paid once"
+    assert staged.ok
+
+
+def test_promote_refuses_an_unproved_tree(tmp_path):
+    from tools.lingua.docgen.stage import Staged, promote
+    corpus_dir = tmp_path / "demo"
+    (corpus_dir / "source").mkdir(parents=True)
+    tree = corpus_dir / ".staging" / "ts-public"
+    write_source(tree, PAGES)
+    bad = Staged(tree, recipe_mod.parse(MINIMAL, "<t>"), 2, 0, "abc",
+                 proved=True, difference="mod/A.md:3 differs between runs")
+    with pytest.raises(ValueError, match="determinism"):
+        promote(bad, corpus_dir)
+
+
+def test_promote_makes_the_tree_a_checkout(tmp_path):
+    """The trick the whole design rests on: git-initialise the derived tree and
+    every existing code path treats it as an ordinary source."""
+    from tools.lingua.docgen.stage import stage, promote
+    from tools.lingua.gittree import git_tree, source_version
+    corpus_dir = tmp_path / "demo"
+    (corpus_dir / "source").mkdir(parents=True)
+    generate, _ = _fake_generator(PAGES)
+    staged = stage(recipe_mod.parse(MINIMAL, "<t>"), corpus_dir,
+                   generate=generate, echo=lambda _: None)
+    tree = promote(staged, corpus_dir, echo=lambda _: None)
+
+    assert (tree / ".chiron" / "recipe.yaml").is_file()
+    assert not (tree / ".chiron" / "staged.json").exists(), "staging marker carried over"
+    assert git_tree(tree) is not None, "a derived tree must hash like a checkout"
+    assert source_version(tree) != "unknown"
+    assert not (corpus_dir / ".staging" / "ts-public").exists()
+
+
+def test_re_promoting_keeps_the_history(tmp_path):
+    """`git -C derived/<recipe> log` is the record of what the docs did when
+    the source moved; a second promotion must not throw it away."""
+    from tools.lingua.docgen.stage import stage, promote
+    corpus_dir = tmp_path / "demo"
+    (corpus_dir / "source").mkdir(parents=True)
+
+    def run_once(pages):
+        generate, _ = _fake_generator(pages)
+        staged = stage(recipe_mod.parse(MINIMAL, "<t>"), corpus_dir,
+                       generate=generate, echo=lambda _: None)
+        return promote(staged, corpus_dir, echo=lambda _: None)
+
+    run_once(PAGES)
+    tree = run_once({**PAGES, "mod/C.md": "# C\n\nNew page.\n"})
+    log = subprocess.run(
+        ["git", "-C", str(tree), "log", "--oneline"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip().splitlines()
+    assert len(log) == 2, "the second promotion dropped the first generation"
+    assert (tree / "mod" / "C.md").is_file()
+
+
+# --- the one test that needs a container ------------------------------------
+
+def _image_available() -> bool:
+    import os
+    ref = os.environ.get("CHIRON_DOCGEN_IMAGE")
+    if not ref or not shutil.which("docker"):
+        return False
+    probe = subprocess.run(["docker", "image", "inspect", ref],
+                           capture_output=True, text=True)
+    return probe.returncode == 0
+
+
+DOCUMENTED_PACKAGE = {
+    "mypkg/__init__.py": '"""The mypkg package."""\n',
+    "mypkg/runtime.py": (
+        '"""Runtime execution for compiled functions."""\n\n\n'
+        'class Runtime:\n'
+        '    """Compiles sources into a typed client."""\n\n'
+        '    def call_function(self, name: str) -> None:\n'
+        '        """Invoke a declared function by name."""\n'
+    ),
+}
+
+
+@pytest.mark.skipif(
+    not _image_available(),
+    reason="needs CHIRON_DOCGEN_IMAGE and a running Docker daemon; "
+           "build with `docker build -t chiron-docgen:dev containers/docgen/`",
+)
+def test_generating_in_the_container_is_reproducible(tmp_path):
+    """The claim the whole feature rests on, against a real generator."""
+    from tools.lingua.docgen.runner import generate
+    from tools.lingua.docgen.stage import promote, stage
+
+    corpus_dir = tmp_path / "pydemo"
+    source = corpus_dir / "source"
+    write_source(source, DOCUMENTED_PACKAGE)
+    git_commit_all(source)
+
+    parsed = recipe_mod.parse({
+        "recipe": "py-api", "tool": "pydoc-markdown",
+        "options": {"packages": ["mypkg"], "search_path": ["."]},
+    }, "<test>")
+    staged = stage(parsed, corpus_dir,
+                   generate=lambda r, s, o: generate(r, s, o),
+                   echo=lambda _: None)
+
+    assert staged.ok, f"pydoc-markdown was not reproducible: {staged.difference}"
+    assert staged.recipe.verified
+    assert "@sha256:" in staged.recipe.image, "the recipe must pin what ran"
+    body = (staged.tree / "mypkg" / "runtime.md").read_text()
+    assert "Compiles sources into a typed client." in body, "docstring lost"
+    assert "Table of Contents" not in body, "scaffolding would become the title"
+
+    tree = promote(staged, corpus_dir, echo=lambda _: None)
+    (corpus_dir / "corpus.yaml").write_text("title: Py Demo\nurls: {}\n")
+    (corpus_dir / "v1" / "tools").mkdir(parents=True)
+    (corpus_dir / "v1" / "translation.yaml").write_text(
+        "modes: [lexicon]\nmaterial: derived/py-api\n"
+    )
+    (corpus_dir / "v1" / "tools" / "adapter.py").write_text(APIDOC_ADAPTER)
+
+    corpus = scan_corpus(discover(tmp_path)[0][0])
+    titles = [c.title for c in corpus.chapters]
+    assert "mypkg.runtime" in titles, titles
+    assert all(c.kind == "doc" for c in corpus.chapters)

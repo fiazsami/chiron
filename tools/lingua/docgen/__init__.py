@@ -135,7 +135,7 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "doxygen": ToolSpec(
         slug="doxygen",
-        label="Doxygen → XML → doxybook2",
+        label="Doxygen → XML → moxygen",
         extensions=(".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh", ".hxx"),
         manifests=("Doxyfile", "CMakeLists.txt", "Makefile", "meson.build"),
         options={
@@ -157,23 +157,15 @@ TOOLS: dict[str, ToolSpec] = {
         ),
         notes=(
             "Doxygen has no Markdown backend; the image converts its XML with "
-            "doxybook2. Prefer `doxide` where the project builds cleanly with it."
+            "moxygen."
         ),
     ),
-    "doxide": ToolSpec(
-        slug="doxide",
-        label="Doxide",
-        extensions=(".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".hh", ".hxx"),
-        manifests=("doxide.yaml", "CMakeLists.txt"),
-        options={
-            "input": Option(
-                list, "source-relative directories to scan", required=True, member=str
-            ),
-            "exclude": Option(list, "patterns to skip", default=[], member=str),
-        },
-        notes="Emits Markdown natively; libclang-based, so it needs a parseable build.",
-    ),
 }
+
+# Doxide is the other credible C++ path and emits Markdown natively, but it
+# needs a source build (cmake, libclang, yaml-cpp, ICU) that this image does
+# not carry. It is left out rather than listed-and-broken: the registry being
+# closed only means something if everything in it runs.
 
 # Group ids a generated tree must not produce — they shadow viewer routes.
 # Mirrors model.RESERVED_GROUP_IDS; imported there rather than restated when

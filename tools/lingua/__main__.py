@@ -6,6 +6,7 @@
     ./ch check [--strict]             # drift report, writes nothing
     ./ch status [--json]              # per-chapter, per-dimension states
     ./ch extract <id> [--dimension L] # source bundle for authoring agents
+    ./ch doc <corpus> --census | --stage --from r.json | --promote | --status
     ./ch set <dim> <id> --from p.json [--redefine]
     ./ch author <target> [--sync] | --collect [--wait] | --apply | --status | --retry <id>
     ./ch ask <register> ["<text>"]    # what is this called here
@@ -50,6 +51,7 @@ from .render import render_all
 from .resolve import (
     GRAMMAR, checked_resolver, one_register, print_resolution, resolve_targets,
 )
+from .docgen import cli as doccli
 from .status import (
     RegisterBundle, all_ok, build_bundle, print_status, state_summary,
 )
@@ -198,6 +200,8 @@ def _parser() -> argparse.ArgumentParser:
     drift.add_argument("--dimension", "--mode", dest="mode", metavar="SLUG",
                        help="limit to one dimension")
 
+    doccli.add_parser(sub)
+
     parser.set_defaults(cmd="build", only=None)
     return parser
 
@@ -333,6 +337,12 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
     corpora_dir = corpora_dir or ROOT / "corpora"
     load_env(ROOT / ".env")
     args = _parser().parse_args(argv)
+
+    # Before discovery on purpose: `doc` is what a mount runs to create the
+    # material a register will later name. Discovering registers first would
+    # fail on the very corpus this command exists to finish.
+    if args.cmd == "doc":
+        return doccli.dispatch(args, corpora_dir)
 
     try:
         configs, warnings = corporamod.discover(corpora_dir)
