@@ -18,7 +18,8 @@ modular plan each dimension follows.
 ## Quickstart
 
 ```bash
-/ch:mount <repo-url>       # in Claude Code: clone, plan, build the adapter
+/ch:mount <repo-url>       # in Claude Code: clone, generate docs if the repo
+                           #   has none, plan, build the adapter
 /ch:translate <name>/v1    # author the register's linguistic substrate
 /ch:verify <name>/v1       # where it stands, and triage if an apply bounced
 /ch:calibrate <name>/v1    # practise the language until it transfers
@@ -51,8 +52,11 @@ status`. Both work, both from the repo root.
 corpora/<name>/                    # one mounted corpus (gitignored in full —
   corpus.yaml                      #   corpora live only on your machine)
   source/                          # the checkout — read-only, shared by registers
+  derived/<recipe>/                # generated material — `./ch doc` writes it,
+                                   #   git-committed, hashes like a checkout
   v1/                              # a register: one retelling of the material
-    translation.yaml               # label, modes, notes, optional groups/adapter
+    translation.yaml               # label, modes, notes, material, optional
+                                   #   groups/adapter
     tools/adapter.py               # scan(cfg, root) -> Corpus (usually 4 lines)
     data/lexicon.yaml              # machine-owned — `author --apply` / `set` only
     data/phrasebook.yaml
@@ -106,6 +110,15 @@ the extraction matters to you — it is the only hand-won artifact.
 ./ch extract <id>             # authoring bundle for agents
 ./ch set <dim> <id> --from payload.json
 ./ch accept-drift <id> [--dimension <dim>]
+
+# Generated material — the one verb that needs Docker. An undocumented repo
+# has a working language but no prose to anchor it to; a doc generator emits
+# the missing half. Runs in a pinned container with no network and a
+# read-only source, and proves the output is reproducible before keeping it.
+./ch doc --census <corpus>              # what a generator would find here
+./ch doc --stage <corpus> --from r.json # generate, normalize, prove
+./ch doc --promote <corpus>/<recipe>    # keep it: corpora/<name>/derived/<recipe>/
+./ch doc --status                       # derived trees behind their source
 
 # Study — read-only, graded against data/*.yaml, no LLM in the loop.
 ./ch ask <register> "<text>"          # what is this called here

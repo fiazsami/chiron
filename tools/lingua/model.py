@@ -83,6 +83,10 @@ class Corpus:
     groups: list[Group]  # ordered; drives index/README section order
     chapters: list[Chapter]
     source_kind: str = ""  # "markdown" | "code" | "custom"; set by the adapter
+    # "<tool> · <recipe>" when this material was generated rather than written.
+    # Set by the adapter, which is the only layer that reads the recipe. It is
+    # not in the manifest: the viewer treats generated Markdown as Markdown.
+    generated_by: str | None = None
     warnings: list[str] = field(default_factory=list)
     # Register metadata; stamped by corpora.scan_corpus, never by adapters.
     register: str = ""  # "v1"

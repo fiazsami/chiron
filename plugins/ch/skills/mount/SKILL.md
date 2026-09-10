@@ -28,6 +28,10 @@ up `corpora/` themselves.
 
 - Never modify anything under `corpora/*/source/`.
 - Never delete or overwrite anything under `corpora/` without an explicit yes.
+- A derived tree is generated: regenerate it, never edit it. `./ch doc` is its
+  only writer, and `.chiron/recipe.yaml` is how it is reproduced.
+- Never run a container by hand. `./ch doc` builds the invocation from a
+  validated recipe; that is what keeps a proposed recipe out of a shell.
 - The adapter is stdlib + pyyaml only: deterministic, no network, writes
   nothing. Adapters are register-agnostic — the pipeline stamps the register on.
 - `corpus.yaml` is written once per corpus; never edit it for a new register.
@@ -81,11 +85,51 @@ Then check what already exists, before creating anything:
    non-git folder is fine; the pipeline falls back to content digests. For a
    new register, reuse the checkout; a pull flags older registers' changed
    chapters stale, which is honest.
-3. **Explore, then gate.** Read the layout, how material is grouped and
+3. **Generate the material** — only when the source is code-shaped and
+   prose-poor, and only for a new register. A documented repo already has the
+   material; generating beside it buys scaffolding, not vocabulary.
+
+   ```
+   ./ch doc --census <name>          # what a generator would find here
+   ```
+
+   The census prints the language mix, doc-comment density, the prose ratio,
+   and the closed list of tools with their options. If it names no candidate,
+   or the prose ratio is already high, say so and go to step 4 against
+   `source/` — that is the common case and it is not a failure.
+
+   Otherwise, spawn `ch:docgen-planner` with the corpus name and a scratchpad
+   path. It reads the census, reads the source, and writes one recipe JSON.
+   You do not ask the user which tool: the selection is the agent's, and the
+   user meets it at the gate with the output in front of them.
+
+   ```
+   ./ch doc --stage <name> --from <recipe.json>
+   ```
+
+   Staging pulls the pinned image, runs the generator with no network and a
+   read-only source, normalizes the output, and — for a recipe not yet proved
+   — generates a second time and compares. Non-identical bytes fail here, and
+   that is the right place: every anchor is pinned to a chapter's
+   `content_hash`, so a generator that varies would mark the whole register
+   stale on every regeneration.
+
+   Then **GATE M**, then on approval:
+
+   ```
+   ./ch doc --promote <name>/<recipe>
+   ```
+
+   The register you write in step 5 names it: `material: derived/<recipe>`.
+4. **Explore, then gate.** Read the layout, how material is grouped and
    ordered, per-document structure, and what should be skipped. Read
    representative *documents*, not just listings. Classify the shape:
    - **markdown course** (`<group>/<NN>-doc.md`) → delegate to
      `tools.lingua.sources.markdown`.
+   - **a derived tree** (you ran step 3) → delegate to
+     `tools.lingua.sources.apidoc`. Its knobs are `group_by` (`directory`, one
+     chapter per page; `module`, one per module directory) and `max_chapters`,
+     both defaulting to the recipe's own.
    - **code repo** → delegate to `tools.lingua.sources.codetree`. Its
      chaptering is deterministic: groups = top-level directories; chapters =
      immediate subdirectories, plus a `<group>-files` chapter for loose files;
@@ -106,12 +150,13 @@ Then check what already exists, before creating anything:
    opportunistically, never require it.
 
    Then **Gate B**.
-4. **Write the tools.**
+5. **Write the tools.**
    - `corpora/<name>/corpus.yaml` (new corpus only): `title` (required, the
      one approved), `origin` if cloned, `urls` when known.
    - `corpora/<name>/v<N>/translation.yaml`: `label`, `modes` (from Gate B,
-     required), `notes` (the gathered requirements, verbatim intent), plus
-     `groups` or `adapter` only when needed.
+     required), `notes` (the gathered requirements, verbatim intent),
+     `material: derived/<recipe>` when step 3 promoted one, plus `groups` or
+     `adapter` only when needed.
    - `corpora/<name>/v<N>/tools/adapter.py` — `scan(cfg, root) -> Corpus`.
      A delegation is four lines:
 
@@ -128,12 +173,12 @@ Then check what already exists, before creating anything:
      pins every anchor's `curated_against`. In Build-together mode, write in
      logical blocks (group discovery → chapter loop → hashing), explaining
      each and confirming before the next: checkpoints, not a line-by-line quiz.
-5. **Make the scan succeed.** Iterate `./ch status` until the chapter list
+6. **Make the scan succeed.** Iterate `./ch status` until the chapter list
    looks right — ids, groups, titles, kinds. Spot-check `./ch extract <id>`:
    the bundle should show the Translation requirements section and one
    Methodology section per selected dimension. If it will not converge after a
    few attempts, stop and bring the mismatch to the user rather than forcing it.
-6. **Build.** `./ch`, then review the summary and a couple of pages under
+7. **Build.** `./ch`, then review the summary and a couple of pages under
    `corpora/<name>/v<N>/pages/`.
 
 ## Gates
@@ -155,6 +200,45 @@ register do differently?"** (free text encouraged) — the answer seeds `label`
 and `notes`. A re-mount, where name and label already exist, may skip Gate A.
 
 ```
+GATE M — material
+  fires         after staging, before anything is promoted under corpora/<name>/
+  what changes  creates corpora/<name>/derived/<recipe>/ and makes it this
+                register's material — the chapters Gate B then plans over
+  the material  ALL of it, inline; the census and the recipe are not enough
+                on their own, because the question is what the generator
+                actually produced:
+                · the census — languages, file counts, doc-comment density,
+                  prose ratio
+                · the chosen tool, and the recipe's options verbatim
+                · the image, digest-pinned as `./ch doc --stage` reported it
+                · the determinism result: "identical", or the exact first
+                  difference between the two runs
+                · the projected group/chapter mapping WITH the chapter count
+                  — `./ch doc --stage` prints it, run through the same adapter
+                  the register will use, so it is the real number
+                · ONE staged page in full, pasted — not a path, not a summary.
+                  Pick a representative one, not the shortest
+  branches      promote and mount against it —
+                  `./ch doc --promote <name>/<recipe>`
+                · mount against source/ instead, skipping generation —
+                  continue at Loop 4
+                · re-plan with a different tool — re-run ch:docgen-planner
+                · adjust the options and re-stage —
+                  `./ch doc --stage <name> --from <recipe.json>`
+                · stop — `./ch doc --clean <name>/<recipe>`
+  reversibility reversible — staging lives in corpora/<name>/.staging/, which
+                nothing scans, and nothing is promoted until this closes
+  unattended    stop and report
+```
+
+Say the chapter count out loud at this gate. Every chapter is one authoring
+request, so the count is what the next `/ch:translate` will cost, and it is
+the number most likely to send the user back to a narrower recipe.
+
+If staging reported a determinism failure there is no promote branch: show the
+difference, and offer only re-plan, narrow, or mount against `source/`.
+
+```
 GATE B — plan
   fires         after exploring the source, before writing any code
   what changes  the register's dimensions, its adapter, and its chaptering
@@ -163,8 +247,9 @@ GATE B — plan
                   (ordered, labeled), what becomes a chapter (id/number/slug
                   rules, kind doc|code, which files make a code chapter),
                   where title and description come from, what is skipped.
-                  For a codetree delegation show the resulting group/chapter
-                  mapping explicitly — confirming the chaptering IS this gate.
+                  For a codetree or apidoc delegation show the resulting
+                  group/chapter mapping explicitly — confirming the chaptering
+                  IS this gate.
                 · translation plan — the register's label and notes text, and
                   which dimensions it extracts: lexicon (what things are
                   called here), phrasebook (how to say it when instructing an
@@ -199,7 +284,9 @@ lives only on this machine:
 - **The adapter is yours**: edit `corpora/<name>/v<N>/tools/adapter.py`,
   rebuild with `./ch`.
 - **Update the material**: `git -C corpora/<name>/source pull`, then rebuild —
-  changed chapters flag their anchors stale, in every register.
+  changed chapters flag their anchors stale, in every register. For a
+  generated register, pull and then re-stage: `./ch doc --status` tells you
+  when a derived tree is behind its source, which nothing else can see.
 - **Author**: `/ch:translate <name>/v<N>` fills the lexicon, phrasebook and
   concept relations. `data/` is the register's accumulated value.
 - **Study**: `/ch:calibrate <name>/v<N>` once there is substrate to work.

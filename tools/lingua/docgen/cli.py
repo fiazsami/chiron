@@ -12,7 +12,10 @@ single writer and to refuse anything it cannot account for.
 import sys
 from pathlib import Path
 
+from ..corpora import CorpusConfig
 from ..gittree import source_version
+from ..model import ScanError
+from ..sources import apidoc
 from ..where import cmd
 from . import TOOLS
 from .normalize import tree_digest
@@ -48,6 +51,34 @@ def add_parser(sub) -> None:
     doc.add_argument("--from", dest="from_file", metavar="FILE",
                      help="recipe JSON for --stage")
     doc.add_argument("--json", action="store_true", help="machine-readable census")
+
+
+def project(tree: Path, corpus_dir: Path) -> str:
+    """The chaptering this tree would produce, run through the real adapter.
+
+    GATE M has to show the chapter count before anything is promoted, and the
+    count is what the next authoring run will cost. Computing it any other way
+    would be showing the user a different number from the one they get.
+    """
+    cfg = CorpusConfig(
+        name=corpus_dir.name, register="v?", corpus_dir=corpus_dir, dir=tree,
+        title=corpus_dir.name, urls={}, origin=None, label=None, modes=[],
+        translation_notes=None, groups=None,
+    )
+    try:
+        corpus = apidoc.scan(cfg, tree)
+    except ScanError as exc:
+        return f"  chaptering    WOULD FAIL — {exc}"
+    by_group: dict[str, list] = {}
+    for chapter in corpus.chapters:
+        by_group.setdefault(chapter.group_label, []).append(chapter)
+    lines = [f"  chapters      {len(corpus.chapters)} in "
+             f"{len(by_group)} group(s)"]
+    for label, chapters in by_group.items():
+        titles = ", ".join(c.title for c in chapters[:4])
+        more = f", … (+{len(chapters) - 4})" if len(chapters) > 4 else ""
+        lines.append(f"    {label:<22} {len(chapters):>3}  {titles}{more}")
+    return "\n".join(lines)
 
 
 def _corpus_dir(corpora_dir: Path, target: str | None) -> Path:
@@ -113,7 +144,7 @@ def run_stage(corpus_dir: Path, from_file: str | None) -> int:
     print(f"staging {corpus_dir.name}/{recipe.recipe} · {recipe.tool}")
     # generate() pins the image onto the recipe as it runs.
     staged = stage(recipe, corpus_dir, generate=generate)
-    print(f"  image    {staged.recipe.image}")
+    print(f"  image         {staged.recipe.image}")
 
     if not staged.ok:
         print()
@@ -131,14 +162,19 @@ def run_stage(corpus_dir: Path, from_file: str | None) -> int:
     tree = staged.tree
     print()
     print(f"staged  {tree}")
-    print(f"  pages    {staged.pages}"
+    print(f"  pages         {staged.pages}"
           + (f" ({staged.dropped} empty dropped)" if staged.dropped else ""))
-    print(f"  digest   {staged.digest[:12]}")
-    print(f"  proved   {'this run — two generations matched' if staged.proved else 'previously; recorded in the recipe'}")
+    print(f"  digest        {staged.digest[:12]}")
+    print(f"  proved        "
+          + ("this run — two generations matched" if staged.proved
+             else "previously; recorded in the recipe"))
+    print(project(tree, corpus_dir))
     sample = sorted(tree.rglob("*.md"))[:1]
     if sample:
-        print(f"  sample   {sample[0].relative_to(tree)}")
+        print(f"  sample        {sample[0].relative_to(tree)}")
     print()
+    print("Show GATE M the census, the recipe, the image, the determinism "
+          "result,\nthe chaptering above, and one staged page in full.")
     print(f"next: {cmd(f'doc --promote {corpus_dir.name}/{recipe.recipe}')}")
     return 0
 

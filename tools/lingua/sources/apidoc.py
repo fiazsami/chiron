@@ -55,6 +55,19 @@ def _options(cfg: CorpusConfig) -> tuple[str | None, int | None]:
     return group_by, max_chapters
 
 
+def _recipe_for(root: Path):
+    """The recipe governing this tree — promoted, or still staged.
+
+    Accepting the staged form is what lets `ch doc --stage` preview the exact
+    chaptering the register will get. A gate has to show its material, and a
+    projection computed by different code would not be the material.
+    """
+    staged = root / ".chiron" / "staged.json"
+    if staged.is_file():
+        return recipe_mod.load_json(staged)
+    return recipe_mod.load(root)
+
+
 def _slugify(name: str) -> str:
     slug = SLUG_RE.sub("-", name.lower()).strip("-")
     return slug or "unit"
@@ -113,7 +126,7 @@ def scan(cfg: CorpusConfig, root: Path) -> Corpus:
         )
     opt_group_by, opt_max = _options(cfg)
     try:
-        rcp = recipe_mod.load(root)
+        rcp = _recipe_for(root)
     except recipe_mod.RecipeError as exc:
         raise ScanError(f"corpus {cfg.name!r}: {exc}") from exc
     group_by = opt_group_by or rcp.group_by
@@ -236,5 +249,6 @@ def scan(cfg: CorpusConfig, root: Path) -> Corpus:
         # Generated or not, this material is Markdown. Saying so keeps the
         # manifest at v6 and the viewer unchanged.
         source_kind="markdown",
+        generated_by=f"{rcp.tool} · recipe {rcp.recipe}",
         warnings=check_workdir(root, cfg.name) if tree is not None else [],
     )
