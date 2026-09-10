@@ -1,6 +1,6 @@
 """The phrasebook dimension: how to say it when instructing an agent.
 
-corpora/<name>/<vN>/data/phrasebook.yaml maps a phrase slug to a canonical
+devenv/reference/<name>/<vN>/data/phrasebook.yaml maps a phrase slug to a canonical
 phrasing (the collocation the corpus actually uses), the intent it serves, an
 optional instruction template with {slots}, the lexicon terms it leans on,
 and anchors. Phrases reference lexicon slugs, so a chapter's lexicon is

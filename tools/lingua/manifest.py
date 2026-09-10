@@ -1,7 +1,7 @@
-"""Write corpora/.manifest.json (version 6) and delete outputs for removed chapters.
+"""Write devenv/reference/.manifest.json (version 6) and delete outputs for removed chapters.
 
 The manifest is a clean index: full lexicon/phrasebook/relations payloads
-live only in the per-register data files, whose corpora-relative paths the
+live only in the per-register data files, whose reference-relative paths the
 manifest declares under corpora[].data — the viewer and the learning agent
 read those files directly. Manifest keys are a lockstep contract shared with
 web/lib/content.ts and .claude/agents/*.md — change them together or not at
@@ -85,7 +85,7 @@ def _chapter_entry(bundle: RegisterBundle, chapter) -> dict:
 
 
 def write_manifest_and_clean(
-    corpora_dir: Path, bundles: list[RegisterBundle]
+    reference_dir: Path, bundles: list[RegisterBundle]
 ) -> list[Path]:
     manifest = {
         "version": VERSION,
@@ -94,7 +94,7 @@ def write_manifest_and_clean(
             _chapter_entry(b, c) for b in bundles for c in b.corpus.chapters
         ],
     }
-    (corpora_dir / ".manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (reference_dir / ".manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
     # Sweep each register's pages/ tree only — never source/, data/, tools/,
     # corpus.yaml, or another register's pages. Expected set covers ALL of the
@@ -103,13 +103,13 @@ def write_manifest_and_clean(
     removed = []
     for bundle in bundles:
         corpus = bundle.corpus
-        pages_dir = corpora_dir / corpus.name / corpus.register / "pages"
+        pages_dir = reference_dir / corpus.name / corpus.register / "pages"
         if not pages_dir.is_dir():
             continue
-        expected = {corpora_dir / c.page_relpath for c in corpus.chapters}
-        expected.add(corpora_dir / index_relpath(corpus))
+        expected = {reference_dir / c.page_relpath for c in corpus.chapters}
+        expected.add(reference_dir / index_relpath(corpus))
         expected.update(
-            corpora_dir / dimension_page_relpath(corpus, slug)
+            reference_dir / dimension_page_relpath(corpus, slug)
             for slug in bundle.tracked_modes
         )
         for page in sorted(pages_dir.rglob("*.md")):

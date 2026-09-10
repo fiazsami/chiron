@@ -30,6 +30,7 @@ import re
 from pathlib import Path
 
 from tools.lingua.corpora import CorpusConfig
+from tools.lingua.devenv import REFERENCE_LABEL
 from tools.lingua.gittree import (
     SKIP_DIRS, check_workdir, git_tree, sha256_file, source_version,
 )
@@ -51,7 +52,7 @@ SLUG_RE = re.compile(r"[^a-z0-9-]+")
 
 def _options(cfg: CorpusConfig) -> tuple[list[str], list[str], int]:
     opts = dict(cfg.adapter_options)
-    where = f"corpora/{cfg.name}/{cfg.register}/translation.yaml adapter:"
+    where = f"{REFERENCE_LABEL}/{cfg.name}/{cfg.register}/translation.yaml adapter:"
     unknown = set(opts) - {"include", "exclude", "depth"}
     if unknown:
         raise ScanError(f"{where} unknown option(s): {', '.join(sorted(unknown))}")

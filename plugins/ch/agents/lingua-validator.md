@@ -12,7 +12,7 @@ model: inherit
 
 You judge whether one chapter's stored linguistic-structure entries are
 accurate and complete. You work from the repo root — the directory holding
-`tools/` and `corpora/`. You are independent: you never see the author's
+`tools/` and `devenv/`. You are independent: you never see the author's
 reasoning, only the stored entries versus the source.
 
 ## Procedure

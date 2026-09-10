@@ -14,8 +14,8 @@ from tools.lingua.status import build_bundle
 from tools.lingua.where import state_line
 
 
-def bundle_for(corpora_dir):
-    configs, _ = corporamod.discover(corpora_dir)
+def bundle_for(reference_dir):
+    configs, _ = corporamod.discover(reference_dir)
     corpus = corporamod.scan_corpus(configs[0])
     return build_bundle(corpus, configs[0].data_dir)
 
@@ -67,12 +67,12 @@ def test_resolve_command_reports_states(markdown_corpus, capsys):
 def test_one_state_line_everywhere(markdown_corpus, capsys):
     """`where`, `status` and `check` must print the byte-identical line —
     the whole point of generating it in one place."""
-    corpora_dir = markdown_corpus[0]
-    canonical = state_line(bundle_for(corpora_dir))
+    reference_dir = markdown_corpus[0]
+    canonical = state_line(bundle_for(reference_dir))
 
-    _, where_out = run(corpora_dir, "where", capsys=capsys)
-    _, status_out = run(corpora_dir, "status", capsys=capsys)
-    _, check_out = run(corpora_dir, "check", capsys=capsys)
+    _, where_out = run(reference_dir, "where", capsys=capsys)
+    _, status_out = run(reference_dir, "status", capsys=capsys)
+    _, check_out = run(reference_dir, "check", capsys=capsys)
     for out in (where_out, status_out, check_out):
         assert canonical in out
 
@@ -114,7 +114,7 @@ def test_check_says_ok_when_clean(markdown_corpus, capsys):
 
 # --- study grades against the substrate, not an opinion ----------------------
 
-def _seed_lexicon(corpora_dir, capsys, tmp_path):
+def _seed_lexicon(reference_dir, capsys, tmp_path):
     payload = {"terms": [{
         "slug": "context-window", "define": True, "term": "context window",
         "kind": "concept", "definition": "The token budget for one call.",
@@ -125,15 +125,15 @@ def _seed_lexicon(corpora_dir, capsys, tmp_path):
     }]}
     path = tmp_path / "lex.json"
     path.write_text(json.dumps(payload))
-    code, _ = run(corpora_dir, "set", "lexicon", "foundations/01",
+    code, _ = run(reference_dir, "set", "lexicon", "foundations/01",
                   "--from", str(path), capsys=capsys)
     assert code == 0
 
 
 def test_grade_lands_on_the_corpus_own_form(markdown_corpus, capsys, tmp_path):
-    corpora_dir = markdown_corpus[0]
-    _seed_lexicon(corpora_dir, capsys, tmp_path)
-    code, out = run(corpora_dir, "grade", "demo-course/v1", "--no-log",
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "grade", "demo-course/v1", "--no-log",
                     "--text", "the context window", capsys=capsys)
     assert code == 0
     assert "verdict: lands" in out
@@ -144,9 +144,9 @@ def test_grade_counts_drift_and_invents_nothing(markdown_corpus, capsys,
                                                 tmp_path):
     """The anti-chatbot proof: an ungrounded instruction exits 1, and no
     corpus term is offered for a word the corpus does not name."""
-    corpora_dir = markdown_corpus[0]
-    _seed_lexicon(corpora_dir, capsys, tmp_path)
-    code, out = run(corpora_dir, "grade", "demo-course/v1", "--no-log",
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "grade", "demo-course/v1", "--no-log",
                     "--text", "add a middleware to the dispatcher",
                     capsys=capsys)
     assert code == 1
@@ -157,22 +157,22 @@ def test_grade_counts_drift_and_invents_nothing(markdown_corpus, capsys,
 
 def test_grade_reads_aliases(markdown_corpus, capsys, tmp_path):
     """aliases have been stored since day one and never read by anything."""
-    corpora_dir = markdown_corpus[0]
-    _seed_lexicon(corpora_dir, capsys, tmp_path)
-    code, out = run(corpora_dir, "grade", "demo-course/v1", "--no-log",
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "grade", "demo-course/v1", "--no-log",
                     "--text", "the ctx window", capsys=capsys)
     assert code == 0
     assert "alias" in out
 
 
 def test_drill_verdict_is_the_exit_code(markdown_corpus, capsys, tmp_path):
-    corpora_dir = markdown_corpus[0]
-    _seed_lexicon(corpora_dir, capsys, tmp_path)
-    miss, out = run(corpora_dir, "grade", "demo-course/v1", "--no-log",
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    miss, out = run(reference_dir, "grade", "demo-course/v1", "--no-log",
                     "--against", "term:context-window",
                     "--text", "the prompt budget", capsys=capsys)
     assert miss == 1 and "verdict: miss" in out
-    hit, out = run(corpora_dir, "grade", "demo-course/v1", "--no-log",
+    hit, out = run(reference_dir, "grade", "demo-course/v1", "--no-log",
                    "--against", "term:context-window",
                    "--text", "the context window", capsys=capsys)
     assert hit == 0 and "verdict: hit" in out
@@ -181,11 +181,11 @@ def test_drill_verdict_is_the_exit_code(markdown_corpus, capsys, tmp_path):
 def test_ask_surfaces_the_drift_pin(markdown_corpus, capsys, tmp_path):
     """Provenance — the grounding story the methodology calls the point of
     the system — reaches a human surface for the first time here."""
-    corpora_dir = markdown_corpus[0]
-    _seed_lexicon(corpora_dir, capsys, tmp_path)
-    bundle = bundle_for(corpora_dir)
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    bundle = bundle_for(reference_dir)
     pin = bundle.data["lexicon"]["context-window"]["anchors"][0]["curated_against"]
-    code, out = run(corpora_dir, "ask", "demo-course/v1", "context window",
+    code, out = run(reference_dir, "ask", "demo-course/v1", "context window",
                     capsys=capsys)
     assert code == 0
     assert f"@ {pin}" in out
@@ -193,14 +193,14 @@ def test_ask_surfaces_the_drift_pin(markdown_corpus, capsys, tmp_path):
 
 def test_calibration_log_is_opt_out_and_under_work(markdown_corpus, capsys,
                                                    tmp_path):
-    corpora_dir = markdown_corpus[0]
-    _seed_lexicon(corpora_dir, capsys, tmp_path)
-    bundle = bundle_for(corpora_dir)
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    bundle = bundle_for(reference_dir)
     log = study.calibration_log(bundle)
-    run(corpora_dir, "grade", "demo-course/v1", "--no-log",
+    run(reference_dir, "grade", "demo-course/v1", "--no-log",
         "--text", "the context window", capsys=capsys)
     assert not log.exists()
-    run(corpora_dir, "grade", "demo-course/v1",
+    run(reference_dir, "grade", "demo-course/v1",
         "--text", "the context window", capsys=capsys)
     assert log.exists()
     record = json.loads(log.read_text().splitlines()[0])
@@ -215,7 +215,7 @@ def test_gate_material_and_both_branches(markdown_corpus, tmp_path, capsys):
 
     from tools.lingua import author as authormod
 
-    corpora_dir = markdown_corpus[0]
+    reference_dir = markdown_corpus[0]
     seed = tmp_path / "seed.json"
     seed.write_text(_json.dumps({"terms": [{
         "slug": "context-window", "define": True, "term": "context window",
@@ -224,10 +224,10 @@ def test_gate_material_and_both_branches(markdown_corpus, tmp_path, capsys):
                      "quote": "The context window holds everything the model "
                               "can see in one call"}],
     }]}))
-    assert run(corpora_dir, "set", "lexicon", "foundations/01",
+    assert run(reference_dir, "set", "lexicon", "foundations/01",
                "--from", str(seed), capsys=capsys)[0] == 0
 
-    bundle = bundle_for(corpora_dir)
+    bundle = bundle_for(reference_dir)
     wd = authormod.work_dir(bundle)
     (wd / "results").mkdir(parents=True, exist_ok=True)
     chapter = next(c for c in bundle.corpus.chapters if c.local_id == "rag/01")
@@ -273,9 +273,9 @@ def test_unanswerable_question_reports_a_substrate_gap(markdown_corpus, capsys,
     """Study failure becomes a production action — the loop neither surface
     had. Nearest-neighbour search always returns neighbours, so this only
     works with a match floor."""
-    corpora_dir = markdown_corpus[0]
-    _seed_lexicon(corpora_dir, capsys, tmp_path)
-    code, out = run(corpora_dir, "ask", "demo-course/v1",
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "ask", "demo-course/v1",
                     "kubernetes ingress controller", capsys=capsys)
     assert code == 1
     assert "substrate gap" in out

@@ -20,6 +20,7 @@ from pathlib import Path
 import yaml
 
 from . import dimensions
+from .devenv import REFERENCE_LABEL
 from .model import Chapter, Corpus
 from .status import RegisterBundle
 from .translation import mode_status
@@ -210,7 +211,7 @@ def current_entry_lines(
         entries = module.entries_for_chapter(bundle.data[slug], chapter.local_id)
         out.append(
             f"## Current {module.LABEL.lower()} entries anchored here "
-            f"(corpora/{chapter.corpus}/{chapter.register}/data/{module.DATA_FILENAME})"
+            f"({REFERENCE_LABEL}/{chapter.corpus}/{chapter.register}/data/{module.DATA_FILENAME})"
         )
         out.append(_block(f"{slug}-yaml", _yaml_or_none(entries)))
     return out

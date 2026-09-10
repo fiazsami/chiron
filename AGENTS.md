@@ -59,6 +59,34 @@ The interaction language has one spine, one grammar, one gate shape and one
 voice. This section is the single home for all four: skills and agent prompts
 reference it, they do not restate it.
 
+### The development environment
+
+chiron is a development environment for prompting, and it has two rooms. You
+read a **reference** corpus to construct an instruction in that repo's own
+working language, then apply it in a **workspace** repo you actually edit —
+two different relationships to a checkout, so two directories, not one.
+
+```
+chiron.yaml           declares the layout; delete it and the defaults below stand
+devenv/               the root — gitignored in full, on this machine only
+  reference/<name>/     a mounted corpus (see Layout in README.md)
+  workspace/<name>/     a repo a refined prompt gets applied to
+```
+
+`tools/lingua/devenv.py` is the only place that resolves these paths, and
+`./ch devenv` prints what they resolved to — read it, never assume the strings.
+A room is one directory name inside the root (`^[a-z0-9][a-z0-9-]*$`), never a
+path and never absolute; the loader rejects anything else. Override the root
+per machine with `CHIRON_DEVENV`.
+
+Discovery only ever scans `reference/`. A checkout dropped anywhere else under
+the root is not half-mounted, it is invisible — `./ch devenv` and `./ch check`
+name it as a stray rather than leaving you to wonder.
+
+**Workspace is a scaffold.** It has a directory, a config key, validation and a
+read-only CLI surface, and nothing else yet. No verb mounts into it and no verb
+edits it. Building that half is the next piece of work.
+
 ### The verb spine
 
 | Verb | Reading | Writes | Owns |
@@ -70,7 +98,8 @@ reference it, they do not restate it.
 
 `./ch` is the CLI, scoped: `./ch status` == `uv run python -m tools.lingua
 status`. Both work; both run from the repo root. `./ch where` is the one-move
-answer to "where am I".
+answer to "where am I"; `./ch devenv` is the one-move answer to "where does
+anything live".
 
 `./ch doc` belongs to `/ch:mount`'s column — generating documentation from a
 corpus's code *is* getting material in. It is the one verb that needs Docker;
@@ -115,6 +144,9 @@ modules, and manifest keys. One word per concept in anything a human reads.
 | how a derived tree was produced | **recipe** | config, profile |
 | the learner's activity | **calibration** | studying, practice |
 | corpus / chapter / group | as written | course, lesson, tier |
+| the whole two-room tree | **devenv** | corpora/, env, sandbox |
+| the room corpora mount into | **reference** | corpora, sources |
+| the room prompts are applied in | **workspace** | target, project, scratch |
 
 `--dimension` is the flag; `--mode` still works as a silent alias.
 
@@ -132,10 +164,15 @@ lexicon. `accept-drift` will not fix that one; re-authoring will.
 
 Each is enforced somewhere; the pointer is the drift test.
 
-- Never modify anything under `corpora/*/source/` — read-only material, and it
+- A corpus lives in `devenv/reference/` and nowhere else. The layout is
+  declared in `chiron.yaml` and resolved in one place
+  (`tools/lingua/devenv.py`); read it with `./ch devenv` rather than
+  hardcoding a path. Anything else under the root is a stray, and both
+  `./ch devenv` and `./ch check` say so.
+- Never modify anything under `devenv/reference/*/source/` — read-only material, and it
   may be someone else's licensed work. `./ch doc` binds it into the container
   read-only, so for generation the kernel enforces this rather than the tooling.
-- `corpora/*/derived/<recipe>/` is generated: regenerate it, never edit it.
+- `devenv/reference/*/derived/<recipe>/` is generated: regenerate it, never edit it.
   `./ch doc` is its only writer, and its `.chiron/recipe.yaml` is how it is
   reproduced. Each derived tree is its own git checkout, so it hashes and
   versions exactly like `source/`.
@@ -146,13 +183,13 @@ Each is enforced somewhere; the pointer is the drift test.
   varies would mark a whole register stale on every run.
 - `data/*.yaml` is machine-owned: written only by `./ch author --apply` and
   `./ch set` — never by hand (`tools/lingua/dimensions/base.py`).
-- `pages/` and `corpora/.manifest.json` are generated; rebuild, never edit
+- `pages/` and `devenv/reference/.manifest.json` are generated; rebuild, never edit
   (`tools/lingua/render.py`, `tools/lingua/manifest.py`).
 - One `--apply` at a time — it is the single writer (`tools/lingua/author.py`).
 - Registers are append-only: creating `v<N+1>` never edits an older register.
 - Never share or copy `data/` between registers — each retelling is extracted
   against its own requirements.
-- Never delete or overwrite anything under `corpora/` without an explicit yes.
+- Never delete or overwrite anything under `devenv/reference/` without an explicit yes.
 - `accept-drift` re-blesses content as-is; prefer re-authoring unless a human
   reviewed the stale content.
 - Anchors are verbatim and mechanically verified; drift pins are per-anchor
@@ -174,7 +211,9 @@ GATE <name>
 
 ### Contracts — change in lockstep or not at all
 
-`corpora/.manifest.json` v6 keys (with `web/lib/content.ts`), `status --json`
+`chiron.yaml`'s `devenv:` keys (with `tools/lingua/devenv.py` and the
+reference path in `web/lib/content.ts`), `devenv/reference/.manifest.json` v6 keys
+(with `web/lib/content.ts`), `status --json`
 keys, extract-bundle headings and `<<<BEGIN x>>>` sentinels, `data/*.yaml`
 keys, `translation.yaml` `modes:` and `material:`, the docgen recipe schema
 (with `containers/docgen/entrypoint.py` and the image's

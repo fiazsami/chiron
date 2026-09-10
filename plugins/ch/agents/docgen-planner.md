@@ -11,7 +11,7 @@ model: inherit
 
 You choose a documentation generator for one mounted corpus and write the
 recipe that runs it. You work from the repo root — the directory holding
-`tools/` and `corpora/`.
+`tools/` and `devenv/`.
 
 Your output is a proposal, not a decision. A human sees your recipe at
 `GATE M` alongside the generated output before anything is kept.
@@ -29,7 +29,7 @@ Your output is a proposal, not a decision. A human sees your recipe at
    ONLY source of truth for which tools exist and which options they take.**
    The registry is closed — a slug or option key that is not in the census
    output does not exist, and inventing one fails validation.
-2. Read enough of `corpora/<corpus>/source/` to answer three questions the
+2. Read enough of `devenv/reference/<corpus>/source/` to answer three questions the
    census cannot:
    - **Where does the public surface start?** Entry modules, exported
      packages, the include directories that hold the headers other people use.
@@ -88,7 +88,7 @@ chiron's to fill in — omit them.
 ```
 
 `recipe` is a slug matching `^[a-z0-9][a-z0-9-]*$`. It names the directory
-the material will live in (`corpora/<corpus>/derived/<recipe>/`) and it is how
+the material will live in (`devenv/reference/<corpus>/derived/<recipe>/`) and it is how
 a human will refer to this choice, so name it for what it selects —
 `ts-public`, `cpp-core`, `py-api` — never `docs` or `v1`.
 
@@ -98,7 +98,7 @@ a human will refer to this choice, so name it for what it selects —
   does, and only after a human has seen your recipe.
 - **Never run `./ch doc --stage`, `--promote`, or `--clean`.** The CLI is the
   single writer and the gate is not yours to close.
-- **Never modify any file in the repo**, including anything under `corpora/`.
+- **Never modify any file in the repo**, including anything under `devenv/reference/`.
   Your one write is the recipe JSON at the path you were given.
 - **Never invent a tool slug or an option key** the census did not print. If
   no listed tool fits, say so in your summary and write no recipe — "this

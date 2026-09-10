@@ -6,10 +6,16 @@ import { type Dimension, type DimensionState } from "./dimensions";
 // module re-exports them so server code keeps a single import site.
 export * from "./dimensions";
 
-// Mounted corpora live beside web/ at the repo root; each corpus register
-// keeps its generated pages under corpora/<name>/<vN>/pages/ and its
-// extracted linguistic structure under corpora/<name>/<vN>/data/.
-export const CORPORA_DIR = path.resolve(process.cwd(), "../corpora");
+// The reference room of the development environment, beside web/ at the repo
+// root; each corpus register keeps its generated pages under
+// devenv/reference/<name>/<vN>/pages/ and its extracted linguistic structure
+// under devenv/reference/<name>/<vN>/data/. This path and chiron.yaml's
+// devenv.reference change in lockstep — see the contracts list in AGENTS.md.
+// CHIRON_REFERENCE_DIR (web/.env.local) overrides it, e.g. for a moved root.
+export const REFERENCE_DIR = path.resolve(
+  process.cwd(),
+  process.env.CHIRON_REFERENCE_DIR ?? "../devenv/reference",
+);
 
 export interface ManifestGroup {
   id: string;
@@ -44,7 +50,7 @@ export interface ManifestChapter {
   title: string;
   kind: "doc" | "code";
   content_hash: string;
-  page: string; // corpora-relative Markdown page path
+  page: string; // reference-room-relative Markdown page path
   source_paths: string[]; // corpus-source-relative unit files
   states: Partial<Record<Dimension, DimensionState>>;
   // Present only when the matching mode is tracked by the register.
@@ -63,7 +69,7 @@ export interface Manifest {
 export async function getManifest(): Promise<Manifest> {
   let raw: string;
   try {
-    raw = await fs.readFile(path.join(CORPORA_DIR, ".manifest.json"), "utf8");
+    raw = await fs.readFile(path.join(REFERENCE_DIR, ".manifest.json"), "utf8");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       // No corpora mounted (or never built) — the empty state, not an error.

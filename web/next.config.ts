@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
-// Dev-only viewer over ../corpora — no static export; pages read the
-// filesystem per request so regenerated pages show up on refresh.
+// Dev-only viewer over ../devenv/reference — no static export; pages read
+// the filesystem per request so regenerated pages show up on refresh.
 const nextConfig: NextConfig = {
   // Next blocks dev assets + the HMR websocket for origins other than the
   // one the server started on. Browsing via a LAN address needs that origin

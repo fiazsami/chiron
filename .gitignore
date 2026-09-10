@@ -27,6 +27,7 @@ wheels/
 .beads/proxieddb/
 *.tsbuildinfo
 
-# Mounted corpora live only on this machine — the repo ships tooling, never
-# corpus artifacts (building the adapter is the learner's exercise).
-corpora/
+# The development environment lives only on this machine — the repo ships
+# tooling, never corpus artifacts (building the adapter is the learner's
+# exercise) and never the workspace repos you apply prompts to.
+devenv/

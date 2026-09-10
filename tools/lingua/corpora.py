@@ -1,7 +1,8 @@
 """Discover mounted corpora and load their adapters.
 
-A corpus is a directory under corpora/ (gitignored in full — corpora live
-only on the learner's machine). Corpus-level facts live at the top; each
+A corpus is a directory in the reference room of the development environment
+(devenv/reference/ — gitignored in full, so corpora live only on the learner's
+machine). Corpus-level facts live at the top; each
 register ("v1", "v2", ...) is a distinct retelling of the same material:
 
     corpus.yaml            corpus config (title, urls, origin)
@@ -31,6 +32,7 @@ import yaml
 
 from . import translation
 from .model import CHAPTER_KINDS, RESERVED_GROUP_IDS, Corpus, Group
+from .devenv import REFERENCE_LABEL
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 REGISTER_RE = re.compile(r"^v[1-9][0-9]*$")
@@ -43,10 +45,10 @@ class CorpusError(Exception):
 
 @dataclass(frozen=True)
 class CorpusConfig:
-    name: str  # directory name under corpora/ — the corpus id
+    name: str  # directory name in the reference room — the corpus id
     register: str  # register directory name — "v1"
-    corpus_dir: Path  # corpora/<name>
-    dir: Path  # corpora/<name>/<register>
+    corpus_dir: Path  # <reference>/<name>
+    dir: Path  # <reference>/<name>/<register>
     title: str
     urls: dict[str, str]
     origin: str | None
@@ -79,12 +81,12 @@ class CorpusConfig:
 
 
 def _load_corpus_yaml(corpus_dir: Path) -> tuple[dict, list[str]]:
-    """Load and validate corpora/<name>/corpus.yaml (corpus-level config).
+    """Load and validate devenv/reference/<name>/corpus.yaml (corpus-level config).
     Returns ({title, urls, origin}, warnings); raises CorpusError on anything
     unusable."""
     name = corpus_dir.name
     path = corpus_dir / "corpus.yaml"
-    where = f"corpora/{name}/corpus.yaml"
+    where = f"{REFERENCE_LABEL}/{name}/corpus.yaml"
     if not NAME_RE.fullmatch(name):
         raise CorpusError(f"corpus directory name {name!r} must match {NAME_RE.pattern}")
     if REGISTER_RE.fullmatch(name):
@@ -137,7 +139,7 @@ def _validate_material(cfg: CorpusConfig, where: str) -> None:
     if not resolved.is_relative_to(cfg.corpus_dir.resolve()):
         raise CorpusError(
             f"{where}: material {cfg.material!r} resolves to {resolved} — "
-            f"outside corpora/{cfg.name}/. A derived tree is generated in "
+            f"outside devenv/reference/{cfg.name}/. A derived tree is generated in "
             f"place; it is never a symlink elsewhere"
         )
     if not cfg.source_dir.is_dir():
@@ -157,7 +159,7 @@ def _validate_material(cfg: CorpusConfig, where: str) -> None:
 def load_config(corpus_dir: Path, register_dir: Path) -> tuple[CorpusConfig, list[str]]:
     """Load one (corpus, register) pair: corpus.yaml + translation.yaml."""
     corpus, warnings = _load_corpus_yaml(corpus_dir)
-    where = f"corpora/{corpus_dir.name}/{register_dir.name}/translation.yaml"
+    where = f"{REFERENCE_LABEL}/{corpus_dir.name}/{register_dir.name}/translation.yaml"
     try:
         tcfg, tw = translation.load_translation(register_dir, where)
     except translation.TranslationError as exc:
@@ -182,18 +184,18 @@ def _register_dirs(corpus_dir: Path) -> list[Path]:
     )
 
 
-def discover(corpora_dir: Path) -> tuple[list[CorpusConfig], list[str]]:
-    """Scan corpora/*/v*/. Returns (configs, warnings); incomplete corpora and
+def discover(reference_dir: Path) -> tuple[list[CorpusConfig], list[str]]:
+    """Scan <reference>/*/v*/. Returns (configs, warnings); incomplete corpora and
     registers are skipped with a warning."""
     configs: list[CorpusConfig] = []
     warnings: list[str] = []
-    if not corpora_dir.is_dir():
+    if not reference_dir.is_dir():
         return configs, warnings
-    for corpus_dir in sorted(p for p in corpora_dir.iterdir() if p.is_dir()):
+    for corpus_dir in sorted(p for p in reference_dir.iterdir() if p.is_dir()):
         name = corpus_dir.name
         if not (corpus_dir / "corpus.yaml").exists():
             warnings.append(
-                f"corpora/{name}/ has no corpus.yaml — skipped "
+                f"{REFERENCE_LABEL}/{name}/ has no corpus.yaml — skipped "
                 f"(unfinished mount? run /ch:mount to complete it)"
             )
             continue
@@ -201,20 +203,20 @@ def discover(corpora_dir: Path) -> tuple[list[CorpusConfig], list[str]]:
             (corpus_dir / d).is_dir() for d in ("notes", "pages")
         ):
             warnings.append(
-                f"corpora/{name}/ has pre-versioned flat-layout artifacts "
+                f"{REFERENCE_LABEL}/{name}/ has pre-versioned flat-layout artifacts "
                 f"(tools/, notes/ or pages/ at the corpus level) — re-mount with "
-                f"/mount; registers live under corpora/{name}/v<N>/"
+                f"/mount; registers live under devenv/reference/{name}/v<N>/"
             )
         register_dirs = _register_dirs(corpus_dir)
         if not register_dirs:
             warnings.append(
-                f"corpora/{name}/ has no registers — run /ch:mount to create v1"
+                f"{REFERENCE_LABEL}/{name}/ has no registers — run /ch:mount to create v1"
             )
             continue
         for register_dir in register_dirs:
             if not (register_dir / "translation.yaml").exists():
                 warnings.append(
-                    f"corpora/{name}/{register_dir.name}/ has no translation.yaml — "
+                    f"{REFERENCE_LABEL}/{name}/{register_dir.name}/ has no translation.yaml — "
                     f"skipped (unfinished mount? run /ch:mount to complete it)"
                 )
                 continue
@@ -225,8 +227,8 @@ def discover(corpora_dir: Path) -> tuple[list[CorpusConfig], list[str]]:
 
 
 def load_adapter(cfg: CorpusConfig) -> Callable[[CorpusConfig, Path], Corpus]:
-    """Import corpora/<name>/<vN>/tools/adapter.py and return its scan()."""
-    where = f"corpora/{cfg.name}/{cfg.register}/tools/adapter.py"
+    """Import devenv/reference/<name>/<vN>/tools/adapter.py and return its scan()."""
+    where = f"{REFERENCE_LABEL}/{cfg.name}/{cfg.register}/tools/adapter.py"
     if not cfg.adapter_path.exists():
         raise CorpusError(f"{where} not found — run /ch:mount to build the register's adapter")
     spec = importlib.util.spec_from_file_location(
@@ -246,7 +248,7 @@ def load_adapter(cfg: CorpusConfig) -> Callable[[CorpusConfig, Path], Corpus]:
 
 def _validate_scan(cfg: CorpusConfig, corpus: Corpus) -> None:
     """Reject adapter output that would break routes or curation keys."""
-    where = f"corpora/{cfg.name}/{cfg.register}"
+    where = f"{REFERENCE_LABEL}/{cfg.name}/{cfg.register}"
     reserved = sorted(g.id for g in corpus.groups if g.id in RESERVED_GROUP_IDS)
     if reserved:
         raise CorpusError(

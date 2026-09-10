@@ -95,37 +95,37 @@ def test_translation_rejects_material_that_could_escape(tmp_path, value):
 
 
 def test_material_defaults_to_source(markdown_corpus):
-    corpora, source = markdown_corpus
-    cfg = discover(corpora)[0][0]
+    reference, source = markdown_corpus
+    cfg = discover(reference)[0][0]
     assert cfg.material is None
-    assert cfg.source_dir == corpora / "demo-course" / "source"
+    assert cfg.source_dir == reference / "demo-course" / "source"
 
 
 def test_material_points_the_adapter_at_the_derived_tree(derived_corpus):
-    corpora, corpus_dir = derived_corpus
-    cfg = discover(corpora)[0][0]
+    reference, corpus_dir = derived_corpus
+    cfg = discover(reference)[0][0]
     assert cfg.source_dir == corpus_dir / "derived" / "ts-public"
 
 
 def test_missing_derived_tree_names_the_command_that_makes_it(derived_corpus):
-    corpora, corpus_dir = derived_corpus
+    reference, corpus_dir = derived_corpus
     for path in sorted((corpus_dir / "derived" / "ts-public").rglob("*"), reverse=True):
         path.unlink() if path.is_file() else path.rmdir()
     (corpus_dir / "derived" / "ts-public").rmdir()
     with pytest.raises(CorpusError, match="ch doc --stage"):
-        discover(corpora)
+        discover(reference)
 
 
 def test_derived_tree_without_a_recipe_is_rejected(derived_corpus):
-    corpora, corpus_dir = derived_corpus
+    reference, corpus_dir = derived_corpus
     (corpus_dir / "derived" / "ts-public" / ".chiron" / "recipe.yaml").unlink()
     with pytest.raises(CorpusError, match="recipe.yaml"):
-        discover(corpora)
+        discover(reference)
 
 
 def test_a_symlinked_derived_tree_is_refused(tmp_path, derived_corpus):
     """MATERIAL_RE cannot catch this one — only the resolved path can."""
-    corpora, corpus_dir = derived_corpus
+    reference, corpus_dir = derived_corpus
     elsewhere = tmp_path / "elsewhere"
     write_source(elsewhere, DERIVED_PAGES)
     (elsewhere / ".chiron").mkdir()
@@ -136,21 +136,21 @@ def test_a_symlinked_derived_tree_is_refused(tmp_path, derived_corpus):
     tree.rmdir()
     tree.symlink_to(elsewhere)
     with pytest.raises(CorpusError, match="outside"):
-        discover(corpora)
+        discover(reference)
 
 
 def test_source_may_still_be_a_symlink(markdown_corpus):
     """/ch:mount symlinks source/ for a local folder — never break that."""
-    corpora, source = markdown_corpus
-    assert (corpora / "demo-course" / "source").is_symlink()
-    assert discover(corpora)[0][0].source_dir.is_dir()
+    reference, source = markdown_corpus
+    assert (reference / "demo-course" / "source").is_symlink()
+    assert discover(reference)[0][0].source_dir.is_dir()
 
 
 # --- apidoc chapters a generated tree deterministically ---------------------
 
 def test_apidoc_chaptering_is_stable_across_scans(derived_corpus):
-    corpora, _ = derived_corpus
-    cfg = discover(corpora)[0][0]
+    reference, _ = derived_corpus
+    cfg = discover(reference)[0][0]
     first = [(c.local_id, c.content_hash, c.title) for c in scan_corpus(cfg).chapters]
     second = [(c.local_id, c.content_hash, c.title) for c in scan_corpus(cfg).chapters]
     assert first == second
@@ -158,8 +158,8 @@ def test_apidoc_chaptering_is_stable_across_scans(derived_corpus):
 
 
 def test_apidoc_titles_and_groups_come_from_the_tree(derived_corpus):
-    corpora, _ = derived_corpus
-    corpus = scan_corpus(discover(corpora)[0][0])
+    reference, _ = derived_corpus
+    corpus = scan_corpus(discover(reference)[0][0])
     assert [g.id for g in corpus.groups] == ["client", "reference", "runtime"]
     titles = {c.local_id: c.title for c in corpus.chapters}
     assert "BamlRuntime" in titles.values()
@@ -168,55 +168,55 @@ def test_apidoc_titles_and_groups_come_from_the_tree(derived_corpus):
 
 
 def test_apidoc_links_back_to_the_upstream_file_not_the_generated_page(derived_corpus):
-    corpora, _ = derived_corpus
-    corpus = scan_corpus(discover(corpora)[0][0])
+    reference, _ = derived_corpus
+    corpus = scan_corpus(discover(reference)[0][0])
     runtime = next(c for c in corpus.chapters if c.title == "BamlRuntime")
     assert runtime.source_url.endswith("/blob/main/src/runtime/mod.ts#L42")
 
 
 def test_apidoc_group_by_module_aggregates(derived_corpus):
-    corpora, corpus_dir = derived_corpus
-    per_page = len(scan_corpus(discover(corpora)[0][0]).chapters)
+    reference, corpus_dir = derived_corpus
+    per_page = len(scan_corpus(discover(reference)[0][0]).chapters)
     (corpus_dir / "v1" / "translation.yaml").write_text(
         "modes: [lexicon]\nmaterial: derived/ts-public\n"
         "adapter:\n  group_by: module\n"
     )
-    per_module = len(scan_corpus(discover(corpora)[0][0]).chapters)
+    per_module = len(scan_corpus(discover(reference)[0][0]).chapters)
     assert per_module < per_page
 
 
 def test_apidoc_refuses_a_group_that_shadows_a_viewer_route(derived_corpus):
-    corpora, corpus_dir = derived_corpus
+    reference, corpus_dir = derived_corpus
     tree = corpus_dir / "derived" / "ts-public"
     (tree / "api").mkdir()
     (tree / "api" / "Thing.md").write_text("# Thing\n\nA thing.\n")
     with pytest.raises(ScanError, match="shadows viewer routes"):
-        scan_corpus(discover(corpora)[0][0])
+        scan_corpus(discover(reference)[0][0])
 
 
 def test_max_chapters_is_an_authoring_budget(derived_corpus):
-    corpora, corpus_dir = derived_corpus
+    reference, corpus_dir = derived_corpus
     write_derived(corpus_dir, max_chapters=2)
     with pytest.raises(ScanError, match="budget"):
-        scan_corpus(discover(corpora)[0][0])
+        scan_corpus(discover(reference)[0][0])
 
 
 def test_apidoc_rejects_unknown_adapter_options(derived_corpus):
-    corpora, corpus_dir = derived_corpus
+    reference, corpus_dir = derived_corpus
     (corpus_dir / "v1" / "translation.yaml").write_text(
         "modes: [lexicon]\nmaterial: derived/ts-public\nadapter:\n  depth: 2\n"
     )
     with pytest.raises(ScanError, match="unknown option"):
-        scan_corpus(discover(corpora)[0][0])
+        scan_corpus(discover(reference)[0][0])
 
 
 # --- the contract with web/: nothing changes --------------------------------
 
 def test_a_generated_register_builds_a_v6_manifest(derived_corpus, capsys):
-    corpora, _ = derived_corpus
-    code, _ = run(corpora, capsys=capsys)
+    reference, _ = derived_corpus
+    code, _ = run(reference, capsys=capsys)
     assert code == 0
-    manifest = json.loads((corpora / ".manifest.json").read_text())
+    manifest = json.loads((reference / ".manifest.json").read_text())
     assert manifest["version"] == 6, "the viewer pins version 6"
     entry = manifest["corpora"][0]
     assert entry["source_kind"] == "markdown", "generated material is Markdown"
@@ -224,8 +224,8 @@ def test_a_generated_register_builds_a_v6_manifest(derived_corpus, capsys):
 
 
 def test_generated_chapters_render_pages_like_any_other(derived_corpus, capsys):
-    corpora, corpus_dir = derived_corpus
-    run(corpora, capsys=capsys)
+    reference, corpus_dir = derived_corpus
+    run(reference, capsys=capsys)
     pages = sorted((corpus_dir / "v1" / "pages").rglob("*.md"))
     assert pages, "no pages rendered"
     body = (corpus_dir / "v1" / "pages" / "runtime" / "bamlruntime.md").read_text()

@@ -1,7 +1,7 @@
 """Load a register's linguistic bits into a local ChromaDB.
 
 Each bit — one lexicon term, one phrasing, one relation edge — becomes one
-document in a "bits" collection persisted under corpora/<name>/<vN>/chroma/.
+document in a "bits" collection persisted under devenv/reference/<name>/<vN>/chroma/.
 Creating a store is opt-in (`uv run python -m tools.lingua chroma`) because
 chromadb's default embedding function downloads a small ONNX model on first
 use. Once a store exists, the default build keeps it fresh: a fingerprint of

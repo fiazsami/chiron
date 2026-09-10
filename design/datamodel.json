@@ -42,7 +42,7 @@
       "description": "Mounted material with a working language. Owns one source/ checkout shared by all registers.",
       "identity": ["name"],
       "attributes": {
-        "name": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[a-z0-9][a-z0-9-]*$" }, "notes": "Directory id under corpora/; must not look like a register (vN)." },
+        "name": { "type": "string", "required": true, "contentKind": "identifier", "caps": { "pattern": "^[a-z0-9][a-z0-9-]*$" }, "notes": "Directory id under devenv/reference/; must not look like a register (vN)." },
         "title": { "type": "string", "required": true, "contentKind": "headword", "notes": "Display title from corpus.yaml." },
         "checkout": { "type": "string", "required": true, "contentKind": "identifier", "notes": "Git short SHA of source/, or 'unknown' for non-repos." },
         "urls": { "type": "map<string,string>", "required": false, "contentKind": "identifier", "notes": "e.g. {site, repo} — upstream locations." },
@@ -51,9 +51,9 @@
       },
       "relationships": {
         "registers": { "target": "register", "cardinality": "1:N", "ordered": true, "notes": "Each register is an independent retelling; re-mounting creates the next one." },
-        "source": { "target": "(source checkout)", "cardinality": "1:1", "notes": "corpora/<name>/source/ — read-only material shared by ALL registers." }
+        "source": { "target": "(source checkout)", "cardinality": "1:1", "notes": "devenv/reference/<name>/source/ — read-only material shared by ALL registers." }
       },
-      "source": "tools/lingua/model.py:76-91, tools/lingua/corpora.py:41-71"
+      "source": "tools/lingua/model.py:76-91, tools/lingua/corpora.py:42-72"
     },
     "register": {
       "description": "One retelling of the corpus under its own translation requirements. Owns its data/*.yaml (one file per implemented dimension), pages/, and adapter. A HARD BOUNDARY: nothing in a register's data references another register — every cross-reference is a register-local id.",
@@ -73,7 +73,7 @@
         "phrases": { "target": "phrase", "cardinality": "1:N", "notes": "The phrasebook: data/phrasebook.yaml, keyed by slug." },
         "edges": { "target": "relationEdge", "cardinality": "1:N", "notes": "Concept relations: data/relations.yaml, a flat edge list." }
       },
-      "source": "tools/lingua/translation.py:30-121, tools/lingua/corpora.py:4-33, methodology/README.md:44-48"
+      "source": "tools/lingua/translation.py:30-121, tools/lingua/corpora.py:3-23, methodology/README.md:44-48"
     },
     "group": {
       "description": "An ordered section within a corpus's chapters.",
@@ -85,7 +85,7 @@
       "relationships": {
         "chapters": { "target": "chapter", "cardinality": "1:N", "ordered": true }
       },
-      "source": "tools/lingua/model.py:19-32, tools/lingua/corpora.py:211-216"
+      "source": "tools/lingua/model.py:19-32, tools/lingua/corpora.py:212-217"
     },
     "chapter": {
       "description": "One coherent unit of material: a single document (kind=doc) or a coherent code unit (kind=code). THE unit of anchoring, authoring, and drift. Two id forms exist: the global id '<corpus>/<vN>/<group>/<NN>' and the register-local id '<group>/<NN>' — anchors and defined_in always use the local form.",

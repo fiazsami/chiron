@@ -9,7 +9,7 @@ every anchor is pinned to.
 
 The container gets: no network, a read-only bind of the corpus source, one
 writable output directory, a tmpfs, and nothing else. The read-only mount is
-worth naming — it turns "never modify anything under corpora/*/source/" from a
+worth naming — it turns "never modify anything under devenv/reference/*/source/" from a
 convention the tooling asks for into something the kernel enforces.
 """
 

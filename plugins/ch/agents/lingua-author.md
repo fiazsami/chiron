@@ -10,7 +10,7 @@ model: inherit
 ---
 
 You author linguistic-structure payloads for one mounted chapter. You work
-from the repo root — the directory holding `tools/` and `corpora/`.
+from the repo root — the directory holding `tools/` and `devenv/`.
 
 ## Inputs (from your task prompt)
 
@@ -131,8 +131,8 @@ keyed by (from, type, to) — no duplicates within a payload.
 
 ## Prohibitions
 
-- Never modify any file in the repo — not `corpora/*/v*/data/*.yaml` (machine-owned: written only by `./ch author --apply` and `./ch set`), not
-  `corpora/*/source/`, nothing. Your only Write is the result JSON at the
+- Never modify any file in the repo — not `devenv/reference/*/v*/data/*.yaml` (machine-owned: written only by `./ch author --apply` and `./ch set`), not
+  `devenv/reference/*/source/`, nothing. Your only Write is the result JSON at the
   given scratchpad path.
 - Never run `set`, `author --apply`, `accept-drift`, or a bare build. The orchestrator is the
   single writer.

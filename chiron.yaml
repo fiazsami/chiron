@@ -1,0 +1,15 @@
+# chiron's development environment. Two rooms, one config.
+#
+#   reference — mounted corpora: read-only material you extract language from
+#   workspace — the repos you apply a refined prompt to
+#
+# Both live under the devenv root, which is gitignored in full. A room is one
+# directory name inside the root, matching ^[a-z0-9][a-z0-9-]*$ — never a path.
+# Override the root per-machine with CHIRON_DEVENV (in .env or your shell);
+# delete this file entirely and the values below are still what you get.
+#
+# `./ch devenv` prints what this resolves to.
+devenv:
+  root: devenv
+  reference: reference
+  workspace: workspace

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { parse } from "yaml";
-import { CORPORA_DIR, type Dimension, type ManifestCorpus } from "./content";
+import { REFERENCE_DIR, type Dimension, type ManifestCorpus } from "./content";
 import type { Lexicon, Phrasebook, RelationEdge } from "./lingua-types";
 
 // Server-side readers for the per-register data YAMLs. A missing data file
@@ -16,7 +16,7 @@ export function dataPath(
   dimension: Dimension,
 ): string | null {
   const entry = corpus.data[dimension];
-  return entry ? path.join(CORPORA_DIR, entry.path) : null;
+  return entry ? path.join(REFERENCE_DIR, entry.path) : null;
 }
 
 async function readData(

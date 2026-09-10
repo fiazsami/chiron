@@ -1,4 +1,7 @@
-"""Fixture builders: tiny corpora written into tmp_path (never the repo tree)."""
+"""Fixture builders: a tiny devenv written into tmp_path (never the repo tree).
+
+Every fixture returns the *reference* room — the one discovery scans. The
+devenv shell itself is exercised in test_devenv.py."""
 
 import subprocess
 import sys
@@ -72,9 +75,17 @@ def git_commit_all(root: Path, message: str = "commit") -> None:
     _git(root, "commit", "-qm", message)
 
 
-def mount(corpora_dir: Path, name: str, source: Path, translation: str,
+def reference_room(tmp_path: Path) -> Path:
+    """The room discovery scans, laid out the way tools.lingua.devenv does."""
+    reference = tmp_path / "devenv" / "reference"
+    (tmp_path / "devenv" / "workspace").mkdir(parents=True)
+    reference.mkdir(parents=True)
+    return reference
+
+
+def mount(reference_dir: Path, name: str, source: Path, translation: str,
           adapter: str, title: str = "Fixture") -> Path:
-    corpus_dir = corpora_dir / name
+    corpus_dir = reference_dir / name
     (corpus_dir / "v1" / "tools").mkdir(parents=True)
     (corpus_dir / "source").symlink_to(source)
     (corpus_dir / "corpus.yaml").write_text(f"title: {title}\nurls:\n  repo: https://example.com/x\n")
@@ -128,7 +139,7 @@ determinism:
 
 def write_derived(corpus_dir, recipe: str = "ts-public", *, group_by: str = "directory",
                   max_chapters: int = 50, pages: dict | None = None):
-    """Materialize corpora/<name>/derived/<recipe>/ the way promote does."""
+    """Materialize <reference>/<name>/derived/<recipe>/ the way promote does."""
     tree = corpus_dir / "derived" / recipe
     write_source(tree, pages if pages is not None else DERIVED_PAGES)
     (tree / ".chiron").mkdir(parents=True, exist_ok=True)
@@ -141,46 +152,43 @@ def write_derived(corpus_dir, recipe: str = "ts-public", *, group_by: str = "dir
 
 @pytest.fixture
 def markdown_corpus(tmp_path):
-    """(corpora_dir, source_dir) with a committed 3-chapter markdown corpus."""
+    """(reference room, source dir) with a committed 3-chapter markdown corpus."""
     source = tmp_path / "src"
     write_source(source, MARKDOWN_DOCS)
     git_commit_all(source)
-    corpora = tmp_path / "corpora"
-    corpora.mkdir()
-    mount(corpora, "demo-course", source, ALL_MODES, MARKDOWN_ADAPTER)
-    return corpora, source
+    reference = reference_room(tmp_path)
+    mount(reference, "demo-course", source, ALL_MODES, MARKDOWN_ADAPTER)
+    return reference, source
 
 
 @pytest.fixture
 def derived_corpus(tmp_path):
-    """(corpora_dir, corpus_dir) with a register scanning a derived tree."""
+    """(reference room, corpus dir) with a register scanning a derived tree."""
     source = tmp_path / "src"
     write_source(source, CODE_FILES)
     git_commit_all(source)
-    corpora = tmp_path / "corpora"
-    corpora.mkdir()
+    reference = reference_room(tmp_path)
     corpus_dir = mount(
-        corpora, "demo-api", source,
+        reference, "demo-api", source,
         "modes: [lexicon]\nmaterial: derived/ts-public\n", APIDOC_ADAPTER,
     )
     write_derived(corpus_dir)
-    return corpora, corpus_dir
+    return reference, corpus_dir
 
 
 @pytest.fixture
 def code_corpus(tmp_path):
-    """(corpora_dir, source_dir) with a committed code corpus."""
+    """(reference room, source dir) with a committed code corpus."""
     source = tmp_path / "src"
     write_source(source, CODE_FILES)
     git_commit_all(source)
-    corpora = tmp_path / "corpora"
-    corpora.mkdir()
-    mount(corpora, "demo-code", source, "modes: [lexicon]\n", CODETREE_ADAPTER)
-    return corpora, source
+    reference = reference_room(tmp_path)
+    mount(reference, "demo-code", source, "modes: [lexicon]\n", CODETREE_ADAPTER)
+    return reference, source
 
 
-def run(corpora_dir: Path, *args: str, capsys=None) -> tuple[int, str]:
+def run(reference_dir: Path, *args: str, capsys=None) -> tuple[int, str]:
     """Run the CLI in-process; returns (exit code, stdout)."""
-    code = lingua_main(list(args), corpora_dir=corpora_dir)
+    code = lingua_main(list(args), reference_dir=reference_dir)
     out = capsys.readouterr().out if capsys else ""
     return code, out

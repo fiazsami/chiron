@@ -11,8 +11,8 @@ from tools.lingua import corpora as corporamod
 from tools.lingua.status import build_bundle
 
 
-def bundle_for(corpora_dir):
-    configs, _ = corporamod.discover(corpora_dir)
+def bundle_for(reference_dir):
+    configs, _ = corporamod.discover(reference_dir)
     corpus = corporamod.scan_corpus(configs[0])
     return build_bundle(corpus, configs[0].data_dir)
 
@@ -49,8 +49,8 @@ def test_schema_requires_requested_dimensions():
 
 
 def test_prompt_split_is_cache_friendly(markdown_corpus):
-    corpora_dir, _ = markdown_corpus
-    bundle = bundle_for(corpora_dir)
+    reference_dir, _ = markdown_corpus
+    bundle = bundle_for(reference_dir)
     shared = authormod.shared_context(bundle)
     chapter = bundle.corpus.chapters[0]
     message = authormod.chapter_message(
@@ -72,8 +72,8 @@ def test_prompt_split_is_cache_friendly(markdown_corpus):
 
 
 def test_apply_results_end_to_end(markdown_corpus, capsys):
-    corpora_dir, _ = markdown_corpus
-    bundle = bundle_for(corpora_dir)
+    reference_dir, _ = markdown_corpus
+    bundle = bundle_for(reference_dir)
     results = {
         "foundations/01": {
             "redefinitions": [],
@@ -111,26 +111,26 @@ def test_apply_results_end_to_end(markdown_corpus, capsys):
     assert "auto-demoted: context-window" in out
 
     data = yaml.safe_load(
-        (corpora_dir / "demo-course/v1/data/lexicon.yaml").read_text())
+        (reference_dir / "demo-course/v1/data/lexicon.yaml").read_text())
     entry = data["context-window"]
     assert entry["defined_in"] == "foundations/01"
     assert entry["definition"] == "The token budget for one call."
     assert {a["chapter"] for a in entry["anchors"]} == {"foundations/01", "rag/01"}
     phrases = yaml.safe_load(
-        (corpora_dir / "demo-course/v1/data/phrasebook.yaml").read_text())
+        (reference_dir / "demo-course/v1/data/phrasebook.yaml").read_text())
     assert "size-against-the-window" in phrases
 
 
 def test_apply_holds_declared_redefinitions(markdown_corpus, tmp_path, capsys):
-    corpora_dir, _ = markdown_corpus
+    reference_dir, _ = markdown_corpus
     # Seed ownership: foundations/01 defines context-window via set.
     payload_file = tmp_path / "seed.json"
     payload_file.write_text(json.dumps(LEX_01))
-    code, _ = run(corpora_dir, "set", "lexicon", "foundations/01",
+    code, _ = run(reference_dir, "set", "lexicon", "foundations/01",
                   "--from", str(payload_file))
     assert code == 0
 
-    bundle = bundle_for(corpora_dir)
+    bundle = bundle_for(reference_dir)
     write_run(bundle, {
         "rag/01": {
             "redefinitions": [{"slug": "context-window",
@@ -151,13 +151,13 @@ def test_apply_holds_declared_redefinitions(markdown_corpus, tmp_path, capsys):
     assert "--redefine" in out
     # Nothing was written for the gated chapter.
     data = yaml.safe_load(
-        (corpora_dir / "demo-course/v1/data/lexicon.yaml").read_text())
+        (reference_dir / "demo-course/v1/data/lexicon.yaml").read_text())
     assert data["context-window"]["definition"] == "The token budget for one call."
 
 
 def test_apply_rejects_ungrounded_and_records_failure(markdown_corpus, capsys):
-    corpora_dir, _ = markdown_corpus
-    bundle = bundle_for(corpora_dir)
+    reference_dir, _ = markdown_corpus
+    bundle = bundle_for(reference_dir)
     write_run(bundle, {
         "foundations/01": {
             "redefinitions": [],
@@ -179,14 +179,14 @@ def test_apply_rejects_ungrounded_and_records_failure(markdown_corpus, capsys):
 
 
 def test_apply_check_writes_nothing(markdown_corpus, capsys):
-    corpora_dir, _ = markdown_corpus
-    bundle = bundle_for(corpora_dir)
+    reference_dir, _ = markdown_corpus
+    bundle = bundle_for(reference_dir)
     write_run(bundle, {"foundations/01": {"redefinitions": [], "lexicon": LEX_01}})
     code = authormod.apply_results(bundle, check=True)
     out = capsys.readouterr().out
     assert code == 0
     assert "would apply" in out
-    assert not (corpora_dir / "demo-course/v1/data/lexicon.yaml").exists()
+    assert not (reference_dir / "demo-course/v1/data/lexicon.yaml").exists()
 
 
 def test_schema_strips_unsupported_constraint_keywords():
@@ -205,8 +205,8 @@ def test_schema_strips_unsupported_constraint_keywords():
 def test_normalize_relocates_wrong_path(code_corpus, capsys):
     """An anchor whose declared path is a real unit file that lacks the
     quote is re-anchored to the unit file containing it."""
-    corpora_dir, _ = code_corpus
-    bundle = bundle_for(corpora_dir)
+    reference_dir, _ = code_corpus
+    bundle = bundle_for(reference_dir)
     write_run(bundle, {
         "server/01": {
             "redefinitions": [],
@@ -226,7 +226,7 @@ def test_normalize_relocates_wrong_path(code_corpus, capsys):
     capsys.readouterr()
     assert code == 0
     data = yaml.safe_load(
-        (corpora_dir / "demo-code/v1/data/lexicon.yaml").read_text())
+        (reference_dir / "demo-code/v1/data/lexicon.yaml").read_text())
     anchor = data["route-table"]["anchors"][0]
     assert anchor["path"] == "server/handlers/routes.py"
     # Quote stored whitespace-normalized — the grounding equivalence.

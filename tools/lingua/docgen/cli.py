@@ -39,7 +39,7 @@ def add_parser(sub) -> None:
     mode.add_argument("--census", action="store_true",
                       help="what a generator would find here (writes nothing)")
     mode.add_argument("--stage", action="store_true",
-                      help="generate into corpora/<name>/.staging/<recipe>/ and "
+                      help="generate into devenv/reference/<name>/.staging/<recipe>/ and "
                            "prove the result is deterministic")
     mode.add_argument("--promote", action="store_true",
                       help="move a proved staging tree into derived/<recipe>/")
@@ -81,19 +81,19 @@ def project(tree: Path, corpus_dir: Path) -> str:
     return "\n".join(lines)
 
 
-def _corpus_dir(corpora_dir: Path, target: str | None) -> Path:
+def _corpus_dir(reference_dir: Path, target: str | None) -> Path:
     if not target:
         raise ValueError(
             f"name a corpus: {cmd('doc --census <corpus>')}"
         )
     name = target.split("/")[0]
-    path = corpora_dir / name
+    path = reference_dir / name
     if not path.is_dir():
-        mounted = sorted(p.name for p in corpora_dir.iterdir()
+        mounted = sorted(p.name for p in reference_dir.iterdir()
                          if p.is_dir() and not p.name.startswith(".")) \
-            if corpora_dir.is_dir() else []
+            if reference_dir.is_dir() else []
         raise ValueError(
-            f"no corpus {name!r} under {corpora_dir}"
+            f"no corpus {name!r} under {reference_dir}"
             + (f" — mounted: {', '.join(mounted)}" if mounted else
                " — mount one with /ch:mount <url>")
         )
@@ -214,12 +214,12 @@ def run_promote(corpus_dir: Path, target: str) -> int:
     return 0
 
 
-def run_status(corpora_dir: Path, target: str | None) -> int:
+def run_status(reference_dir: Path, target: str | None) -> int:
     corpus_dirs = (
-        [_corpus_dir(corpora_dir, target)] if target
-        else sorted(p for p in corpora_dir.iterdir()
+        [_corpus_dir(reference_dir, target)] if target
+        else sorted(p for p in reference_dir.iterdir()
                     if p.is_dir() and not p.name.startswith("."))
-        if corpora_dir.is_dir() else []
+        if reference_dir.is_dir() else []
     )
     rows, behind = [], 0
     for corpus_dir in corpus_dirs:
@@ -274,12 +274,12 @@ def run_clean(corpus_dir: Path, target: str) -> int:
     return 0
 
 
-def dispatch(args, corpora_dir: Path) -> int:
+def dispatch(args, reference_dir: Path) -> int:
     """Run one `ch doc` command. Returns the process exit code."""
     try:
         if args.status:
-            return run_status(corpora_dir, args.target)
-        corpus_dir = _corpus_dir(corpora_dir, args.target)
+            return run_status(reference_dir, args.target)
+        corpus_dir = _corpus_dir(reference_dir, args.target)
         if args.census:
             return run_census(corpus_dir, args.json)
         if args.stage:

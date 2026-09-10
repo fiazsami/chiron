@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import dimensions
+from .devenv import REFERENCE_LABEL
 from .model import Chapter, Corpus
 
 STATES = ("ok", "stale", "none")
@@ -25,7 +26,7 @@ COUNT_KEYS = {
 }
 
 MOUNT_HINT = (
-    "no corpora mounted under corpora/ — run /ch:mount <repo-url> in Claude "
+    "no corpora mounted under devenv/reference/ — run /ch:mount <repo-url> in Claude "
     "Code to mount one"
 )
 
@@ -119,7 +120,7 @@ def build_bundle(corpus: Corpus, data_dir: Path) -> RegisterBundle:
     for slug, module in dimensions.REGISTRY.items():
         data[slug] = module.load(data_dir / module.DATA_FILENAME)
     bundle = RegisterBundle(corpus=corpus, data_dir=data_dir, data=data)
-    where_prefix = f"corpora/{corpus.name}/{corpus.register}/data"
+    where_prefix = f"{REFERENCE_LABEL}/{corpus.name}/{corpus.register}/data"
     for slug in bundle.tracked_modes:
         module = dimensions.REGISTRY[slug]
         bundle.warnings += module.warnings(

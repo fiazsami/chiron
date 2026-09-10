@@ -51,7 +51,7 @@ bd close <id>         # Complete work
 <!-- END BEADS INTEGRATION -->
 
 The Session Completion protocol above governs changes to this repo's tooling.
-It never applies to `corpora/` (gitignored in full — there is nothing to
+It never applies to `devenv/` (gitignored in full — there is nothing to
 push). It never authorizes a commit or push the user did not ask for; when a
 skill's gate says to ask first, ask first.
 

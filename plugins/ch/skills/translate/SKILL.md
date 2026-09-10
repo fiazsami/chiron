@@ -15,7 +15,7 @@ and the **single writer** of `data/*.yaml`.
 
 ## Invariants
 
-- Never hand-edit `corpora/*/v*/data/*.yaml`. Content flows author-result →
+- Never hand-edit `devenv/reference/*/v*/data/*.yaml`. Content flows author-result →
   validate → apply.
 - Never hand-edit a payload under `work/authoring/`. Both branches of the
   redefinition gate are files the CLI writes and commands the CLI prints.
@@ -82,7 +82,7 @@ GATE R — redefinition
 
 ```
 GATE C — commit
-  what changes   the repo, never corpora/ (gitignored in full)
+  what changes   the repo, never devenv/ (gitignored in full)
   the material   `git diff --stat`
   branches       commit with a message the user approves, or leave it
   reversibility  reversible before push

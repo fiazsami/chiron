@@ -3,7 +3,7 @@ import path from "node:path";
 import { cache } from "react";
 import matter from "gray-matter";
 import {
-  CORPORA_DIR,
+  REFERENCE_DIR,
   findCorpus,
   getManifest,
   type Manifest,
@@ -56,7 +56,7 @@ function stripMarkdown(text: string): string {
 
 async function readChapterMeta(page: string): Promise<ChapterMeta> {
   try {
-    const raw = await fs.readFile(path.join(CORPORA_DIR, page), "utf8");
+    const raw = await fs.readFile(path.join(REFERENCE_DIR, page), "utf8");
     const data = matter(raw).data as Record<string, unknown>;
     return {
       description:

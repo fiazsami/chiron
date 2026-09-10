@@ -10,7 +10,7 @@ recipe record `verified: true` so later runs pay once. A tree whose bytes move
 on their own would mark every anchor in the corpus stale on every
 regeneration, so this is the check the whole feature rests on.
 
-Staging lives at corpora/<name>/.staging/<recipe>/ — outside every tree the
+Staging lives at devenv/reference/<name>/.staging/<recipe>/ — outside every tree the
 pipeline scans, so a half-finished generation is never mountable.
 """
 

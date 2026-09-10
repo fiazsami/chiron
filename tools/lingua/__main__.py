@@ -40,9 +40,11 @@ from pathlib import Path
 
 from . import author as authormod
 from . import corpora as corporamod
+from . import devenv as devenvmod
 from . import dimensions
 from .author import AuthorError
 from .corpora import CorpusError
+from .devenv import DevenvError
 from .dimensions.base import LinguaDataError, SetContext, read_payload
 from .extract import build_extract
 from .manifest import write_manifest_and_clean
@@ -112,6 +114,10 @@ def _parser() -> argparse.ArgumentParser:
 
     sub.add_parser(
         "where", help="one line per register: state and the next action")
+
+    sub.add_parser(
+        "devenv", help="the resolved development environment: reference, "
+                       "workspace, and anything in neither")
 
     extract = sub.add_parser("extract",
                              help="print a chapter's source bundle for authoring agents")
@@ -186,7 +192,7 @@ def _parser() -> argparse.ArgumentParser:
     chroma = sub.add_parser(
         "chroma",
         help="load each register's bits (terms, phrasings, relation edges) "
-             "into corpora/<name>/<vN>/chroma/ — opt-in; the default "
+             "into devenv/reference/<name>/<vN>/chroma/ — opt-in; the default "
              "embedding model is downloaded on first run. Once a store "
              "exists, plain builds keep it fresh automatically")
     chroma.add_argument("targets", nargs="*", metavar="REGISTER",
@@ -333,19 +339,48 @@ def state_line_block(bundles: list[RegisterBundle]) -> list[str]:
     return ["", *[state_line(b) for b in bundles]] if bundles else []
 
 
-def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
-    corpora_dir = corpora_dir or ROOT / "corpora"
+def _stray_warnings(dv) -> list[str]:
+    """A checkout in neither room is invisible to discovery. Say so once, in
+    the same warning stream every surface already prints."""
+    if dv is None:
+        return []
+    return [
+        f"{dv.root.name}/{stray}/ is in neither room — nothing scans it; "
+        f"move it into {dv.reference.name}/ or {dv.workspace.name}/"
+        for stray in dv.strays()
+    ]
+
+
+def main(argv: list[str] | None = None, reference_dir: Path | None = None) -> int:
+    # .env first: it is where CHIRON_DEVENV can move the whole environment, so
+    # it has to be loaded before the layout is resolved from it.
     load_env(ROOT / ".env")
     args = _parser().parse_args(argv)
+
+    dv = None
+    devenv_warnings: list[str] = []
+    if reference_dir is None:
+        try:
+            dv, devenv_warnings = devenvmod.load(ROOT)
+        except DevenvError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        dv.ensure()
+        reference_dir = dv.reference
+
+    if args.cmd == "devenv":
+        dv = dv or devenvmod.injected(reference_dir)
+        return devenvmod.print_devenv(dv, ROOT, devenv_warnings)
 
     # Before discovery on purpose: `doc` is what a mount runs to create the
     # material a register will later name. Discovering registers first would
     # fail on the very corpus this command exists to finish.
     if args.cmd == "doc":
-        return doccli.dispatch(args, corpora_dir)
+        return doccli.dispatch(args, reference_dir)
 
     try:
-        configs, warnings = corporamod.discover(corpora_dir)
+        configs, warnings = corporamod.discover(reference_dir)
+        warnings = devenv_warnings + _stray_warnings(dv) + warnings
         bundles = []
         for cfg in configs:
             corpus = corporamod.scan_corpus(cfg)
@@ -422,7 +457,7 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
             for bundle in selected:
                 key = f"{bundle.corpus.name}/{bundle.corpus.register}"
                 count = chromamod.ingest(bundle)
-                print(f"{key}: {count} bits → corpora/{key}/chroma/")
+                print(f"{key}: {count} bits → devenv/reference/{key}/chroma/")
             return 0
 
         if args.cmd == "author":
@@ -479,10 +514,10 @@ def main(argv: list[str] | None = None, corpora_dir: Path | None = None) -> int:
         except CorpusError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
-        written = render_all(bundles, corpora_dir, only=only)
-        removed = write_manifest_and_clean(corpora_dir, bundles)
+        written = render_all(bundles, reference_dir, only=only)
+        removed = write_manifest_and_clean(reference_dir, bundles)
         print(f"wrote {len(written)} pages under "
-              f"corpora/<corpus>/<vN>/pages/"
+              f"devenv/reference/<corpus>/<vN>/pages/"
               + (f", removed {len(removed)} stale" if removed else ""))
         # Registers that opted into a chroma store get it refreshed whenever
         # the bits drift — /translate ends in a build, so applied authoring

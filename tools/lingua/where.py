@@ -29,7 +29,7 @@ def cmd(rest: str) -> str:
 
 
 MOUNT_HINT = (
-    "no corpora mounted under corpora/ — run /ch:mount <repo-url> in Claude "
+    "no corpora mounted under devenv/reference/ — run /ch:mount <repo-url> in Claude "
     "Code to mount one"
 )
 

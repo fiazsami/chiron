@@ -2,9 +2,9 @@
 name: mount
 description: >
   Mount a learning resource (a git repo or local folder) as a versioned
-  corpus register: clone it under corpora/<name>/source/, gather the
+  corpus register: clone it under devenv/reference/<name>/source/, gather the
   translation requirements, plan the extraction interactively, author the
-  register's adapter in corpora/<name>/v<N>/tools/adapter.py, and build its
+  register's adapter in devenv/reference/<name>/v<N>/tools/adapter.py, and build its
   pages. Re-running it on a mounted corpus creates the next register — a
   fresh retelling of the same material. Args: a git URL or local path,
   optionally a corpus name; or a mounted corpus name to add a register; with
@@ -15,19 +15,22 @@ description: >
 Read `../GRAMMAR.md` first. You are mounting a corpus register. Run
 everything from the repo root.
 
-A corpus is `corpora/<name>/`: `corpus.yaml`, one shared `source/`, and one
+A corpus is `devenv/reference/<name>/`: `corpus.yaml`, one shared `source/`, and one
 or more registers `v1/`, `v2/`, … — each a distinct retelling under its own
 `translation.yaml`. All of it is gitignored; the repo ships tooling only.
 `README.md` has the layout; do not restate it to the user unless asked.
 
 **Building the adapter is the learning exercise, and the result belongs to
 the learner.** After mounting they maintain it, rebuild after edits, and back
-up `corpora/` themselves.
+up `devenv/reference/` themselves.
 
 ## Invariants
 
-- Never modify anything under `corpora/*/source/`.
-- Never delete or overwrite anything under `corpora/` without an explicit yes.
+- A mount always lands in the reference room. Never write anything under
+  `devenv/workspace/` — that room belongs to the apply half, which no verb
+  drives yet. Resolve the rooms with `./ch devenv`; never hardcode them.
+- Never modify anything under `devenv/reference/*/source/`.
+- Never delete or overwrite anything under `devenv/reference/` without an explicit yes.
 - A derived tree is generated: regenerate it, never edit it. `./ch doc` is its
   only writer, and `.chiron/recipe.yaml` is how it is reproduced.
 - Never run a container by hand. `./ch doc` builds the invocation from a
@@ -65,7 +68,7 @@ to `^[a-z0-9][a-z0-9-]*$`, and never `^v[0-9]+$`.
 
 Then check what already exists, before creating anything:
 
-- **Same origin already mounted** (any `corpora/*/corpus.yaml`) → that IS this
+- **Same origin already mounted** (any `devenv/reference/*/corpus.yaml`) → that IS this
   corpus, whatever its name. Gate A offers the next register, or a source pull
   plus rebuild.
 - **Name taken by a complete corpus** → Gate A offers `v<N+1>`, or a pull and
@@ -79,9 +82,9 @@ Then check what already exists, before creating anything:
 ## Loop
 
 1. **Orient.** `./ch where`.
-2. **Source in place** (only if `corpora/<name>/source/` is absent). URL →
-   `git clone <url> corpora/<name>/source`. Local directory →
-   `ln -s <absolute-path> corpora/<name>/source` — never copy. A plain
+2. **Source in place** (only if `devenv/reference/<name>/source/` is absent). URL →
+   `git clone <url> devenv/reference/<name>/source`. Local directory →
+   `ln -s <absolute-path> devenv/reference/<name>/source` — never copy. A plain
    non-git folder is fine; the pipeline falls back to content digests. For a
    new register, reuse the checkout; a pull flags older registers' changed
    chapters stale, which is honest.
@@ -146,18 +149,18 @@ Then check what already exists, before creating anything:
    `sources/codetree.py` (complete worked examples), `tools/lingua/gittree.py`
    (`git_tree`, `sha256_file`, `source_version`, `check_workdir` — hash
    committed blobs, not working-tree bytes), `methodology/README.md`. Any
-   locally mounted `corpora/*/v*/tools/adapter.py` is a bonus example — use it
+   locally mounted `devenv/reference/*/v*/tools/adapter.py` is a bonus example — use it
    opportunistically, never require it.
 
    Then **Gate B**.
 5. **Write the tools.**
-   - `corpora/<name>/corpus.yaml` (new corpus only): `title` (required, the
+   - `devenv/reference/<name>/corpus.yaml` (new corpus only): `title` (required, the
      one approved), `origin` if cloned, `urls` when known.
-   - `corpora/<name>/v<N>/translation.yaml`: `label`, `modes` (from Gate B,
+   - `devenv/reference/<name>/v<N>/translation.yaml`: `label`, `modes` (from Gate B,
      required), `notes` (the gathered requirements, verbatim intent),
      `material: derived/<recipe>` when step 3 promoted one, plus `groups` or
      `adapter` only when needed.
-   - `corpora/<name>/v<N>/tools/adapter.py` — `scan(cfg, root) -> Corpus`.
+   - `devenv/reference/<name>/v<N>/tools/adapter.py` — `scan(cfg, root) -> Corpus`.
      A delegation is four lines:
 
      ```python
@@ -179,17 +182,17 @@ Then check what already exists, before creating anything:
    Methodology section per selected dimension. If it will not converge after a
    few attempts, stop and bring the mismatch to the user rather than forcing it.
 7. **Build.** `./ch`, then review the summary and a couple of pages under
-   `corpora/<name>/v<N>/pages/`.
+   `devenv/reference/<name>/v<N>/pages/`.
 
 ## Gates
 
 ```
 GATE A — scope
   fires         after the target is classified, before anything is created
-  what changes  creates corpora/<name>/v<N>, or reuses an existing corpus
+  what changes  creates devenv/reference/<name>/v<N>, or reuses an existing corpus
   the material  the derived name, what already exists under it, the source
                 origin and whether it is about to be pulled
-  branches      mount as corpora/<name>/v<N> · add a register to an existing
+  branches      mount as devenv/reference/<name>/v<N> · add a register to an existing
                 corpus · pull source and rebuild instead · another name · stop
   reversibility reversible — nothing is written until it closes
   unattended    stop and report
@@ -201,8 +204,8 @@ and `notes`. A re-mount, where name and label already exist, may skip Gate A.
 
 ```
 GATE M — material
-  fires         after staging, before anything is promoted under corpora/<name>/
-  what changes  creates corpora/<name>/derived/<recipe>/ and makes it this
+  fires         after staging, before anything is promoted under devenv/reference/<name>/
+  what changes  creates devenv/reference/<name>/derived/<recipe>/ and makes it this
                 register's material — the chapters Gate B then plans over
   the material  ALL of it, inline; the census and the recipe are not enough
                 on their own, because the question is what the generator
@@ -226,7 +229,7 @@ GATE M — material
                 · adjust the options and re-stage —
                   `./ch doc --stage <name> --from <recipe.json>`
                 · stop — `./ch doc --clean <name>/<recipe>`
-  reversibility reversible — staging lives in corpora/<name>/.staging/, which
+  reversibility reversible — staging lives in devenv/reference/<name>/.staging/, which
                 nothing scans, and nothing is promoted until this closes
   unattended    stop and report
 ```
@@ -278,12 +281,12 @@ Per `GRAMMAR.md`. New registers start with every tracked state `none` — that
 is normal, say so. Include chapters per group, chapter kinds, and each mode's
 status (active, or recorded and not yet implemented).
 
-Then hand over ownership — nothing is committed; `corpora/` is gitignored and
+Then hand over ownership — nothing is committed; `devenv/` is gitignored and
 lives only on this machine:
 
-- **The adapter is yours**: edit `corpora/<name>/v<N>/tools/adapter.py`,
+- **The adapter is yours**: edit `devenv/reference/<name>/v<N>/tools/adapter.py`,
   rebuild with `./ch`.
-- **Update the material**: `git -C corpora/<name>/source pull`, then rebuild —
+- **Update the material**: `git -C devenv/reference/<name>/source pull`, then rebuild —
   changed chapters flag their anchors stale, in every register. For a
   generated register, pull and then re-stage: `./ch doc --status` tells you
   when a derived tree is behind its source, which nothing else can see.
@@ -292,7 +295,7 @@ lives only on this machine:
 - **Study**: `/ch:calibrate <name>/v<N>` once there is substrate to work.
 - **Iterate**: `/ch:mount` the same corpus again for `v<N+1>`.
 - **Browse**: `cd web && npm run dev`.
-- **Back up `corpora/` yourself** — each register's `data/` especially.
+- **Back up `devenv/reference/` yourself** — each register's `data/` especially.
 
 Finish by asking what to do next, with explicit targets. Asking now rather
 than up front is deliberate: the user could not have known the size of the

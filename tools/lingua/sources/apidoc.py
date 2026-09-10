@@ -27,6 +27,7 @@ import re
 from pathlib import Path
 
 from tools.lingua.corpora import CorpusConfig
+from tools.lingua.devenv import REFERENCE_LABEL
 from tools.lingua.docgen import recipe as recipe_mod
 from tools.lingua.gittree import check_workdir, git_tree, sha256_file, source_version
 from tools.lingua.model import RESERVED_GROUP_IDS, Chapter, Corpus, Group, ScanError
@@ -40,7 +41,7 @@ META_DIR = ".chiron"
 
 def _options(cfg: CorpusConfig) -> tuple[str | None, int | None]:
     opts = dict(cfg.adapter_options)
-    where = f"corpora/{cfg.name}/{cfg.register}/translation.yaml adapter:"
+    where = f"{REFERENCE_LABEL}/{cfg.name}/{cfg.register}/translation.yaml adapter:"
     unknown = set(opts) - {"group_by", "max_chapters"}
     if unknown:
         raise ScanError(f"{where} unknown option(s): {', '.join(sorted(unknown))}")

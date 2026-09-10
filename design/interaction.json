@@ -183,7 +183,7 @@
         "materialIsTheOutput": "The census and the recipe are proposals; what the gate shows is a staged page in full plus the real chapter count, computed by the same adapter the register will run.",
         "source": {
           "file": "plugins/ch/skills/mount/SKILL.md",
-          "line": 203,
+          "line": 206,
           "quote": "GATE M \u2014 material"
         }
       },
@@ -315,6 +315,50 @@
         "line": 37,
         "quote": "The learner's activity"
       }
+    },
+    {
+      "concept": "the whole two-room tree",
+      "say": "devenv",
+      "not": [
+        "corpora/",
+        "env",
+        "sandbox"
+      ],
+      "note": "The directory was corpora/ until the environment grew a second room. A corpus is what you read; a workspace repo is what you write. One flat directory could not say which relationship a checkout had, so the layout became declared config (chiron.yaml) resolved in one place (tools/lingua/devenv.py) and readable with `./ch devenv`.",
+      "expresses": {
+        "file": "AGENTS.md",
+        "line": 147,
+        "quote": "the whole two-room tree"
+      }
+    },
+    {
+      "concept": "the room corpora mount into",
+      "say": "reference",
+      "not": [
+        "corpora",
+        "sources"
+      ],
+      "note": "The only room discovery scans. Anything else under the root is a stray, named by `./ch devenv` and `./ch check` rather than silently half-mounted.",
+      "expresses": {
+        "file": "AGENTS.md",
+        "line": 148,
+        "quote": "the room corpora mount into"
+      }
+    },
+    {
+      "concept": "the room prompts are applied in",
+      "say": "workspace",
+      "not": [
+        "target",
+        "project",
+        "scratch"
+      ],
+      "note": "Scaffold only: a directory, a config key, validation and a read-only CLI surface. No verb mounts into it or edits it yet.",
+      "expresses": {
+        "file": "AGENTS.md",
+        "line": 149,
+        "quote": "the room prompts are applied in"
+      }
     }
   ],
   "study": {
@@ -344,7 +388,7 @@
   "gaps": [
     "The state line is not in the manifest, so web/ cannot print the byte-identical string. Putting it there means manifest v6 \u2192 v7 across tools/lingua/manifest.py, web/lib/content.ts, tests, README and AGENTS.md. Deferred deliberately: this pass changes no machine contract.",
     "`bit` survives in web/ (navigator-types.ts, /api/bit, CommandPalette) and as the chroma collection name and .bits-fingerprint. Renaming the collection needs a paired fingerprint rename or every existing store breaks.",
-    "The PreToolUse guard that would make the corpora/ invariants enforced rather than restated is not wired; .claude/settings.json still has an empty hooks block. The SessionStart hook ships in the plugin manifest instead.",
+    "The PreToolUse guard that would make the devenv/ invariants enforced rather than restated is not wired; .claude/settings.json still has an empty hooks block. The SessionStart hook ships in the plugin manifest instead.",
     "Noun-phrase extraction in grade() is n-gram longest-match over surface forms plus a stopword filter. It is deliberately coverage, not grammar, and will be imperfect on long instructions.",
     "design/datamodel.json and design/ui-map.json carry `source` pointers without `quote`, so the drift test can only check that their files and line ranges still exist. Backfilling quotes would make them content-checkable too.",
     "`claude plugin marketplace update` does not re-copy a directory-source plugin while its manifest version is unchanged, so an edit under plugins/ch/ needs an uninstall+install to take effect. Bumping the version on every skill edit is the alternative.",
@@ -363,12 +407,12 @@
       },
       {
         "form": "--stage <corpus> --from <recipe.json>",
-        "writes": "corpora/<name>/.staging/<recipe>/",
+        "writes": "devenv/reference/<name>/.staging/<recipe>/",
         "does": "generate, normalize, and prove determinism"
       },
       {
         "form": "--promote <corpus>/<recipe>",
-        "writes": "corpora/<name>/derived/<recipe>/",
+        "writes": "devenv/reference/<name>/derived/<recipe>/",
         "does": "keep it, git-committed, with its recipe"
       },
       {
@@ -443,12 +487,12 @@
     },
     "staysMarkdown": {
       "file": "tools/lingua/sources/apidoc.py",
-      "line": 250,
+      "line": 251,
       "quote": "manifest at v6 and the viewer unchanged"
     },
     "tellsTheAuthor": {
       "file": "tools/lingua/extract.py",
-      "line": 113,
+      "line": 114,
       "quote": "only one is the"
     }
   }

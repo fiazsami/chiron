@@ -1,6 +1,6 @@
 """The concept-relations dimension: typed links between lexicon entries.
 
-corpora/<name>/<vN>/data/relations.yaml holds a flat edge list; each edge
+devenv/reference/<name>/<vN>/data/relations.yaml holds a flat edge list; each edge
 links two lexicon slugs with a closed-set type, a one-line gloss, and
 anchors. Both endpoints must exist in the lexicon, so a chapter's lexicon is
 authored before its relations. Edges are keyed by (from, type, to): a second

@@ -101,7 +101,7 @@ docker run --rm --network none --user <uid>:<gid> --read-only \
 `--rm` is the destroy half of instantiate/run/destroy. `--network none` means
 a generator cannot fetch dependencies mid-run; everything it needs is baked
 in. The read-only source bind is worth naming: it turns chiron's "never modify
-anything under `corpora/*/source/`" from a convention the tooling asks for
+anything under `devenv/reference/*/source/`" from a convention the tooling asks for
 into something the kernel enforces.
 
 ## Changing versions

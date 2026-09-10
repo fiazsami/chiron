@@ -1,6 +1,6 @@
 """The lexicon dimension: what things are called in this corpus.
 
-corpora/<name>/<vN>/data/lexicon.yaml maps a term slug to its canonical
+devenv/reference/<name>/<vN>/data/lexicon.yaml maps a term slug to its canonical
 surface form, kind, grounded definition, and anchors. Terms are corpus-scoped
 (one entry per concept, however many chapters mention it); writes are
 chapter-scoped — a payload for chapter C first drops C's anchors everywhere,

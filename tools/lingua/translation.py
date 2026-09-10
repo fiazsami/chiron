@@ -21,7 +21,7 @@ from .model import Group
 
 MODE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 GROUP_ID_RE = re.compile(r"^[a-z0-9-]+$")
-# Which tree under corpora/<name>/ this register scans. "source" is the
+# Which tree under <reference>/<name>/ this register scans. "source" is the
 # checkout; "derived/<recipe>" is a generated tree materialized by `ch doc`.
 # Anchored and slug-shaped on both segments, so it can never escape the corpus.
 MATERIAL_RE = re.compile(r"^(source|derived/[a-z0-9][a-z0-9-]*)$")

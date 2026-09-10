@@ -1,6 +1,6 @@
 """Normalized data model shared by every corpus adapter.
 
-Adapters (corpora/<name>/<vN>/tools/adapter.py, usually delegating to a
+Adapters (devenv/reference/<name>/<vN>/tools/adapter.py, usually delegating to a
 building block under tools/lingua/sources/) walk their corpus's native layout
 and return a Corpus whose Chapters all have this shape; everything downstream
 (extraction, curation, rendering, manifest, web) consumes only these records
@@ -69,15 +69,15 @@ class Chapter:
 
     @property
     def page_relpath(self) -> str:
-        """Page path relative to the corpora/ root."""
+        """Page path relative to the reference room."""
         return f"{self.corpus}/{self.register}/pages/{self.group}/{self.slug}.md"
 
 
 @dataclass
 class Corpus:
-    name: str  # corpus directory name under corpora/
+    name: str  # corpus directory name under the reference room
     title: str  # display title from corpus.yaml
-    root: Path  # corpora/<name>/source — shared by all registers
+    root: Path  # <reference>/<name>/source — shared by all registers
     checkout: str  # git short SHA of source/ (or a content digest for plain folders)
     urls: dict[str, str]  # {"site": ..., "repo": ...}
     groups: list[Group]  # ordered; drives index/README section order
