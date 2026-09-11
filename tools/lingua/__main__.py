@@ -51,7 +51,8 @@ from .manifest import write_manifest_and_clean
 from .model import Chapter, ScanError
 from .render import render_all
 from .resolve import (
-    GRAMMAR, checked_resolver, one_register, print_resolution, resolve_targets,
+    GRAMMAR, checked_resolver, one_register, print_resolution, registers_for,
+    resolve_targets,
 )
 from .docgen import cli as doccli
 from .status import (
@@ -124,6 +125,19 @@ def _parser() -> argparse.ArgumentParser:
     extract.add_argument("id", metavar="ID")
     extract.add_argument("--dimension", "--mode", dest="mode", metavar="SLUG",
                          help="trim the bundle to one dimension")
+
+    vocabcmd = sub.add_parser(
+        "vocab", help="every term a register names — the whole list, cheap "
+                      "enough to read before deciding whether it is relevant")
+    vocabcmd.add_argument("targets", nargs="*", metavar="TARGET")
+    vocabcmd.add_argument("--json", action="store_true")
+
+    entrycmd = sub.add_parser(
+        "entry", help="one entry resolved whole — definition, the phrasings "
+                      "that name it, and every relation it touches")
+    entrycmd.add_argument("register", metavar="REGISTER")
+    entrycmd.add_argument("ids", nargs="+", metavar="ID")
+    entrycmd.add_argument("--json", action="store_true")
 
     askcmd = sub.add_parser(
         "ask", help="what is this called here (read-only study)")
@@ -411,6 +425,16 @@ def main(argv: list[str] | None = None, reference_dir: Path | None = None) -> in
 
         if args.cmd == "resolve":
             return print_resolution(bundles, args.targets)
+
+        if args.cmd == "vocab":
+            from . import vocab as vocabmod
+            return vocabmod.print_vocab(
+                registers_for(bundles, args.targets), args.json)
+
+        if args.cmd == "entry":
+            from . import entry as entrymod
+            bundle = one_register(bundles, [args.register])
+            return entrymod.print_entries(bundle, args.ids, args.json)
 
         if args.cmd in ("ask", "grade"):
             from . import study

@@ -280,3 +280,220 @@ def test_unanswerable_question_reports_a_substrate_gap(markdown_corpus, capsys,
     assert code == 1
     assert "substrate gap" in out
     assert "/ch:translate" in out
+
+
+# --- the vocabulary index ----------------------------------------------------
+
+def test_vocab_lists_every_term_grouped(markdown_corpus, capsys, tmp_path):
+    """The detection surface: the whole list, not a search over it. A reader
+    deciding whether a corpus is relevant gets every name it uses."""
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "vocab", capsys=capsys)
+    assert code == 0
+    assert "demo-course/v1 — 1 terms" in out
+    assert "foundations" in out          # the group header
+    assert "context-window" in out       # the slug — the id `entry` will take
+    assert "(concept)" in out            # the kind
+    assert "aka ctx window" in out       # aliases widen what a reader spots
+
+
+def test_vocab_suppresses_a_term_the_slug_already_says(markdown_corpus, capsys,
+                                                       tmp_path):
+    """`context-window`/`context window` is one name, not two. Printing both
+    widens a third of the list for nothing."""
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    _, out = run(reference_dir, "vocab", capsys=capsys)
+    assert "context-window (concept)" in out
+    assert "— context window" not in out
+
+
+def test_vocab_json_carries_the_join_keys(markdown_corpus, capsys, tmp_path):
+    """The slug is what `ch entry` takes; the group is the first cut a larger
+    register would scope by."""
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "vocab", "--json", capsys=capsys)
+    assert code == 0
+    payload = json.loads(out)
+    assert payload[0]["register"] == "demo-course/v1"
+    assert payload[0]["count"] == 1 and payload[0]["tracks_lexicon"] is True
+    term = payload[0]["terms"][0]
+    assert term == {"slug": "context-window", "term": "context window",
+                    "kind": "concept", "aliases": ["ctx window"],
+                    "group": "foundations", "defined_in": "foundations/01"}
+
+
+def test_vocab_scopes_to_a_target_and_rejects_an_unmounted_one(
+        markdown_corpus, capsys, tmp_path):
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "vocab", "demo-course/v1", capsys=capsys)
+    assert code == 0 and "demo-course/v1" in out
+    code, _ = run(reference_dir, "vocab", "no-such-corpus", capsys=capsys)
+    assert code == 2
+
+
+def test_vocab_says_so_when_nothing_is_authored(markdown_corpus, capsys):
+    """An empty register is not an absent one — a reader must be able to tell
+    'this corpus names nothing yet' from 'this corpus does not name that'."""
+    reference_dir = markdown_corpus[0]
+    code, out = run(reference_dir, "vocab", capsys=capsys)
+    assert code == 0
+    assert "no terms authored yet" in out and "./ch translate" in out
+
+
+def test_vocab_writes_nothing(markdown_corpus, capsys, tmp_path):
+    reference_dir = markdown_corpus[0]
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+    before = {p: p.stat().st_mtime_ns for p in reference_dir.rglob("*")
+              if p.is_file()}
+    run(reference_dir, "vocab", capsys=capsys)
+    run(reference_dir, "vocab", "--json", capsys=capsys)
+    after = {p: p.stat().st_mtime_ns for p in reference_dir.rglob("*")
+             if p.is_file()}
+    assert before == after
+
+
+# --- the evaluation surface --------------------------------------------------
+
+def _seed_joins(reference_dir, capsys, tmp_path):
+    """A lexicon with three terms, a phrasing that names one, and two edges —
+    one alongside, one opposing. Enough for both joins to have something to
+    find and for the opposing edge to be told apart from the rest."""
+    _seed_lexicon(reference_dir, capsys, tmp_path)
+
+    def setp(dimension, chapter, payload):
+        path = tmp_path / f"{dimension}-{chapter.replace('/', '-')}.json"
+        path.write_text(json.dumps(payload))
+        code, _ = run(reference_dir, "set", dimension, chapter,
+                      "--from", str(path), capsys=capsys)
+        assert code == 0, f"{dimension} {chapter} rejected"
+
+    setp("lexicon", "rag/01", {"terms": [{
+        "slug": "retrieval", "define": True, "term": "retrieval",
+        "kind": "concept", "definition": "Fetching documents before a call.",
+        "anchors": [{"chapter": "rag/01",
+                     "quote": "Retrieved documents are appended to the prompt"}],
+    }]})
+    setp("lexicon", "foundations/02", {"terms": [{
+        "slug": "prompt-shape", "define": True, "term": "prompt shape",
+        "kind": "concept", "definition": "How a system prompt frames a task.",
+        "anchors": [{"chapter": "foundations/02",
+                     "quote": "A system prompt frames the task"}],
+    }]})
+    setp("phrasebook", "foundations/01", {"phrases": [{
+        "slug": "size-against-the-window", "phrase": "size examples against it",
+        "intent": "instruct trimming examples to the token budget",
+        "template": "Trim {examples} until they fit the context window.",
+        "terms": ["context-window"],
+        "anchors": [{"chapter": "foundations/01",
+                     "quote": "sizes examples against it"}],
+    }]})
+    setp("concept-relations", "rag/01", {"edges": [{
+        "from": "retrieval", "to": "context-window", "type": "feeds",
+        "gloss": "retrieved documents land in the context window.",
+        "anchors": [{"chapter": "rag/01",
+                     "quote": "Retrieved documents are appended to the prompt"}],
+    }]})
+    setp("concept-relations", "foundations/02", {"edges": [{
+        "from": "prompt-shape", "to": "retrieval", "type": "contrasts-with",
+        "gloss": "few-shot examples calibrate in place of fetching documents.",
+        "anchors": [{"chapter": "foundations/02",
+                     "quote": "few-shot examples calibrate the answer style"}],
+    }]})
+
+
+def test_entry_resolves_a_term_with_both_joins(markdown_corpus, capsys, tmp_path):
+    """The definition alone is what `ask` already gave. The joins are why this
+    surface exists: what else you will need, and what you must not also ask for."""
+    reference_dir = markdown_corpus[0]
+    _seed_joins(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "entry", "demo-course/v1", "retrieval",
+                    capsys=capsys)
+    assert code == 0
+    assert "retrieval   (concept)   term:retrieval" in out
+    # the relations join, split by what the edge is telling the reader to do
+    assert "what else this touches (1)" in out
+    assert "retrieval —feeds→ context-window" in out
+    # and the opposing edge is told apart rather than buried in the list
+    assert "what this is an alternative to (1)" in out
+    assert "prompt-shape —contrasts-with→ retrieval" in out
+
+
+def test_entry_carries_the_phrasing_template(markdown_corpus, capsys, tmp_path):
+    """`template:` is instruction scaffolding in the corpus's own words — the
+    single most useful thing here for a reader who cannot phrase the ask."""
+    reference_dir = markdown_corpus[0]
+    _seed_joins(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "entry", "demo-course/v1", "context-window",
+                    capsys=capsys)
+    assert code == 0
+    assert "how to say it (1)" in out
+    assert "size examples against it" in out
+    assert "template: Trim {examples} until they fit the context window." in out
+
+
+def test_entry_takes_a_bare_slug_or_a_prefixed_id(markdown_corpus, capsys,
+                                                  tmp_path):
+    """`vocab` prints bare slugs; a reader copying one across should not have
+    to decorate it. The prefixed forms still address the other two dimensions."""
+    reference_dir = markdown_corpus[0]
+    _seed_joins(reference_dir, capsys, tmp_path)
+    bare, out_bare = run(reference_dir, "entry", "demo-course/v1",
+                         "context-window", capsys=capsys)
+    pref, out_pref = run(reference_dir, "entry", "demo-course/v1",
+                         "term:context-window", capsys=capsys)
+    assert bare == pref == 0 and out_bare == out_pref
+
+    code, out = run(reference_dir, "entry", "demo-course/v1",
+                    "phrase:size-against-the-window", capsys=capsys)
+    assert code == 0 and "intent: instruct trimming examples" in out
+    code, out = run(reference_dir, "entry", "demo-course/v1",
+                    "relation:retrieval--feeds--context-window", capsys=capsys)
+    assert code == 0 and "retrieved documents land in the context window." in out
+
+
+def test_entry_returns_the_hits_and_exits_1_on_a_miss(markdown_corpus, capsys,
+                                                      tmp_path):
+    """One mistyped slug out of several must not cost the others. The exit
+    code is how a caller tells a silent miss from a hit without reading prose."""
+    reference_dir = markdown_corpus[0]
+    _seed_joins(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "entry", "demo-course/v1",
+                    "context-window", "no-such-term", capsys=capsys)
+    assert code == 1
+    assert "term:context-window" in out
+    assert "no-such-term — not in this lexicon" in out
+
+
+def test_entry_json_carries_the_joins(markdown_corpus, capsys, tmp_path):
+    reference_dir = markdown_corpus[0]
+    _seed_joins(reference_dir, capsys, tmp_path)
+    code, out = run(reference_dir, "entry", "demo-course/v1", "retrieval",
+                    "--json", capsys=capsys)
+    assert code == 0
+    payload = json.loads(out)
+    assert payload["register"] == "demo-course/v1"
+    entry = payload["entries"][0]
+    assert entry["found"] is True and entry["id"] == "term:retrieval"
+    assert entry["anchors"][0]["curated_against"]
+    feeds = [e for e in entry["relations"] if e["type"] == "feeds"][0]
+    assert feeds["other"] == "context-window" and feeds["direction"] == "out"
+    assert feeds["opposing"] is False
+    opposed = [e for e in entry["relations"] if e["opposing"]][0]
+    assert opposed["other"] == "prompt-shape" and opposed["direction"] == "in"
+
+
+def test_entry_writes_nothing(markdown_corpus, capsys, tmp_path):
+    reference_dir = markdown_corpus[0]
+    _seed_joins(reference_dir, capsys, tmp_path)
+    before = {p: p.stat().st_mtime_ns for p in reference_dir.rglob("*")
+              if p.is_file()}
+    run(reference_dir, "entry", "demo-course/v1", "retrieval", capsys=capsys)
+    run(reference_dir, "entry", "demo-course/v1", "retrieval", "--json",
+        capsys=capsys)
+    after = {p: p.stat().st_mtime_ns for p in reference_dir.rglob("*")
+             if p.is_file()}
+    assert before == after

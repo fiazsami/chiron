@@ -136,6 +136,21 @@ the extraction matters to you — it is the only hand-won artifact.
 ./ch doc --promote <corpus>/<recipe>    # keep it: devenv/reference/<name>/derived/<recipe>/
 ./ch doc --status                       # derived trees behind their source
 
+# Orientation — the whole vocabulary, cheap enough (a few thousand tokens)
+# to read before deciding whether a corpus is relevant at all. Reading beats
+# searching here: a search that returns nothing cannot tell you whether the
+# corpus omits the idea or you phrased the query wrong, and it says the same
+# thing either way.
+./ch vocab [<target>]                 # every term a register names
+./ch vocab --json                     # slugs, kinds, groups — the join keys
+
+# …then take the slugs that matter back, resolved whole. Both joins are
+# mechanical — the phrasings that name a term (with their `template:`), and
+# every relation it touches, with `contrasts-with` separated out because
+# asking for both ends of one is a design error, not a phrasing error.
+./ch entry <register> <id>...         # definition + phrasings + relations
+./ch entry <register> <id>... --json  # exit 1 if any id was not found
+
 # Study — read-only, graded against data/*.yaml, no LLM in the loop.
 ./ch ask <register> "<text>"          # what is this called here
 ./ch ask <register> --relate <a> <b>  # how two names relate

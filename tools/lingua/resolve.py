@@ -175,6 +175,23 @@ def resolve_targets(bundles, exprs, *, pending_only: bool = True) -> list[Select
     return selections
 
 
+def registers_for(bundles, exprs) -> list:
+    """Every register a list of expressions names — for the register-scoped
+    read-only surfaces. No expression, like `all`, means every mounted one:
+    a reader who does not know which corpus is relevant is exactly who these
+    surfaces are for."""
+    if not exprs or "all" in exprs:
+        return list(bundles)
+    picked: list = []
+    for expr in exprs:
+        matched = _registers_for(bundles, expr)
+        if not matched:
+            raise CorpusError(
+                f"{expr!r} does not name a mounted register\n\n{GRAMMAR}")
+        picked += [b for b in matched if b not in picked]
+    return picked
+
+
 def one_register(bundles, exprs) -> object:
     """The single register an expression names — for the run-scoped author
     subcommands. With no expression, the one register that has a run."""
